@@ -1,0 +1,133 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE DME_PLANTS
+
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 500;
+capex_existing = 64816;
+fom_existing = 4204.8;
+vom_existing = 0;
+lifetime_existing = 20;
+capex = 64816;
+fom = 4204.8;
+vom = 0;
+lifetime = 20;
+conversion_factor_hydrogen = 0.295;
+conversion_factor_co2 = 2.203;
+conversion_factor_co2_unreacted = 0.377;
+conversion_factor_water = 1.17;
+conversion_factor_elec = 0.1;
+hhv_dme = 8.803;
+lhv_dme = 8.01;
+lhv_h2 = 33.322;
+minimum_level = 0.1;
+ramp_rate_up = 1.0;
+ramp_rate_down = 1.0;
+min_external_power = 0.0;
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: dme_produced[T];
+external: h2_consumed[T];
+external: co2_consumed[T];
+external: co2_produced[T];
+external: e_consumed[T];
+external: h2o_produced[T];
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+dme_produced[t] >= 0;
+dme_produced[t] >= minimum_level * (pre_installed_capacity + new_capacity);
+dme_produced[t] <= pre_installed_capacity + new_capacity;
+dme_produced[i] - dme_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+dme_produced[i] - dme_produced[i-1] >= - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+h2_consumed[t]/lhv_h2 == conversion_factor_hydrogen * dme_produced[t]/lhv_dme;
+co2_consumed[t] == conversion_factor_co2 * dme_produced[t]/lhv_dme;
+co2_produced[t] == conversion_factor_co2_unreacted * dme_produced[t]/lhv_dme;
+h2o_produced[t] == conversion_factor_water * dme_produced[t]/lhv_dme;
+e_consumed[t] == conversion_factor_elec * dme_produced[t];
+h2_consumed[t] >= 0;
+co2_consumed[t] >= 0;
+co2_produced[t] >= 0;
+h2o_produced[t] >= 0;
+e_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * dme_produced[t];
+
+
+
+#NODE DME_STORAGE_HUB
+
+#PARAMETERS
+pre_installed_capacity_stock = 0;
+pre_installed_capacity_flow = 0;
+max_capacity_stock = 1000;
+max_capacity_flow = 1 * max_capacity_stock;
+capex_stock_existing = 1.497;
+capex_flow_existing = 1.497;
+fom_stock_existing = 0.0;
+fom_flow_existing = 0.0;
+vom_stock_existing = 0.0;
+vom_flow_existing = 0.0;
+lifetime_stock_existing = 30.0;
+lifetime_flow_existing = 30.0;
+capex_stock = 1.497;
+capex_flow = 1.497;
+fom_stock = 0.0;
+fom_flow = 0.0;
+vom_stock = 0.0;
+vom_flow = 0.0;
+lifetime_stock = 30.0;
+lifetime_flow = 30.0;
+wacc = 0.07;
+nb_year = T/8760;
+lhv_dme = 8.01;
+charge_discharge_ratio = 1.0;
+self_discharge = 0.00003;
+efficiency_in = 1.0;
+efficiency_out = 1.0;
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc)**(-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc)**(-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc)**(-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc)**(-lifetime_flow_existing));
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock
+                     + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: capacity_flow;
+internal: capacity_stock;
+internal: dme_stored[T];
+external: dme_charged[T];
+external: dme_discharged[T];
+
+#CONSTRAINTS
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+dme_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+dme_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+dme_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+dme_stored[0] == dme_stored[T-1];
+dme_stored[t+1] == (1 - self_discharge) * dme_stored[t] + dme_charged[t] - dme_discharged[t];
+capacity_flow >= 0;
+capacity_stock >= 0;
+dme_stored[t] >= 0;
+dme_charged[t] >= 0;
+dme_discharged[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock
+             + nb_year * (yearly_capex_flow + fom_flow) * capacity_flow
+             + yearly_existing_cost;
+min var_cost: vom_stock * (dme_stored[t] ) + vom_flow * (dme_charged[t] );
+
+

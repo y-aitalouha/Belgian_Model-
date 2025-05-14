@@ -1,0 +1,63 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE ELECTROLYSIS_PLANTS 
+// ens.dk data for 2050 for alkaline electrolyser have been taken as defaults for cost and efficiency parameters 
+
+#PARAMETERS
+unit_GW = 0;
+energy_hydrogen = 0;
+pre_installed_capacity = 0;         // GW(h2_lhv)
+max_capacity = 100;                 // GW(h2_lhv)
+// data from ens.dk 2020
+capex_existing = 827.4;             // M€/GW(h2_lhv)
+fom_existing = 16.548;              // M€/GW(h2_lhv)/yr
+vom_existing = 0;                   // M€/GWh(h2_lhv)
+lifetime_existing = 25;             // years
+// data from ens.dk 2050
+capex = 333.33; 					// M€/GW(h2_lhv)
+fom = 0.02*capex; 					// M€/GW(h2_lhv)/yr 
+vom = 0; 					        // M€/GWh(h2_lhv)
+conversion_efficiency = 0.74;       // GWh(h2_lhv)/GWh(e)
+planned_outage = 2/365;             // 2 days/365 
+lifetime = 35;                      // years
+// Physical properties
+hhv_h2 = 39.4;                      // GWh/kt  
+lhv_h2 = 33.3;                      // GWh/kt 
+stoichiometric_coef_H2O_H2 = 1;      
+stoichiometric_coef_O2_H2 = 0.5;     
+molar_mass_H2O = 18;                // g/mol
+molar_mass_H2 = 2;                  // g/mol
+molar_mass_O2 = 32;                 // g/mol 
+// Other 
+ramp_rate_down = 1;
+ramp_rate_up = 1;
+min_external_power = 0.05;          // data from model of Berger and al 2019
+nb_year = T/8760;                   
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/GW(h2_lhv)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/GW(h2_lhv)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+
+#VARIABLES
+internal: new_capacity;             // GW(h2)
+external: e_consumed[T];            // Gwh(e)
+external: h2o_consumed[T];          // kt(h2o)
+external: h2_produced[T];           // GWh(h2_lhv)
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+min_external_power * new_capacity <= h2_produced[t];
+h2_produced[t] <= new_capacity + pre_installed_capacity;
+h2_produced[t] == conversion_efficiency * e_consumed[t];
+h2_produced[i] <= h2_produced[i-1] + ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-2];
+h2_produced[i] >= h2_produced[i-1] - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-2];
+sum(h2_produced[i] for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+h2o_consumed[t] == stoichiometric_coef_H2O_H2 * (molar_mass_H2O * h2_produced[t])/(molar_mass_H2 * lhv_h2);
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity; 		// M€		
+min var_cost: vom * h2_produced[t];                                 // M€

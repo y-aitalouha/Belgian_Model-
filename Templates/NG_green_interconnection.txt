@@ -1,0 +1,35 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE NG_GREEN_INTERCONNECTION
+// data from the Remote Hub Berger et al.
+
+#PARAMETERS
+energy_natural_gas = 0;
+import_capacity = 100;                                              // GW(ch4_lhv)
+export_capacity = 0;                                                // GW(ch4_lhv)
+import_costs = import "../Data/Cost/cost_import_ng.csv";                      // M€/GWh(ch4_lhv)
+export_cost = 0.001;                                                // M€/GWh(ch4_lhv) 
+nb_year = T/8760;                                                   // years
+max_import = 910000 * nb_year;                                      // GWh(ch4_lhv)
+max_export = 910000 * nb_year;                                      // GWh(ch4_lhv)
+spec_co2_captured = 0.202;
+
+#VARIABLES
+external: ng_imported[T];                                              // GWh(ch4_lhv)
+external: ng_exported[T];                                              // GWh(ch4_lhv)
+external: co2_captured[T];
+
+#CONSTRAINTS
+ng_imported[t] >= 0;
+ng_imported[t] <= import_capacity;
+sum(ng_imported[i] for i in [0:T-1]) <= max_import;
+ng_exported[t] >= 0;
+ng_exported[t] <= export_capacity;
+sum(ng_exported[i] for i in [0:T-1]) <= max_export;
+co2_captured[t] == spec_co2_captured * ng_imported[t];
+
+#OBJECTIVES
+min import_cost: import_costs[t] * ng_imported[t];                     // M€
+max export_cost: export_cost * ng_exported[t];                         // M€
+max co2_capt_cost: global.co2_emission_cost * co2_captured[t];      // M€

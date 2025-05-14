@@ -1,0 +1,58 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE PCCC
+// Berger et al. 2019 have been taken as defaults for cost and efficiency parameters
+
+#PARAMETERS
+unit_kt_h = 0;
+energy_carbon_dioxide = 0;
+pre_installed_capacity = 0;                         // kt/h
+max_capacity = 5;                                   // kt/h 
+// data from Berger et al. 2019
+capex_existing = 3150.0;                            // M€/kt/h
+fom_existing = 0.0;                                 // M€/kt/h/yr
+vom_existing = 0.0;                                 // M€/kt
+lifetime_existing = 20;                             // years
+// data from Berger et al. 2019
+capex = 3150.0;                                     // M€/kt/h
+fom = 0.0;                                          // M€/kt/h/yr
+vom = 0.0;                                          // M€/kt/h
+lifetime = 20;                                      // years
+electricity_required_for_CO2 = 0.4125;              // GWh/kt
+co2_emission_cost = 80 * 1/(10**3);                 // M€/kt(co2)
+// Other
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/kt(co2)/h/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/kt(co2)/h/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+
+#VARIABLES
+external: e_consumed[T];            // GWh(e)
+internal: new_capacity;             // kt/h
+external: co2_released[T];          // kt
+external: co2_captured[T];          // kt
+
+#CONSTRAINTS
+e_consumed[t] >= 0;                                                     
+new_capacity >= 0;                                                      
+new_capacity <= max_capacity - pre_installed_capacity;
+co2_captured[t] >= 0;
+co2_released[t] >= 0;
+co2_captured[t] <= new_capacity;
+e_consumed[t] == electricity_required_for_CO2 * co2_captured[t];
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity;            // M€
+min var_cost: vom * co2_captured[t];                                    // M€
+min co2_cost: co2_emission_cost * co2_released[t];               // M€
+
+#HYPEREDGE CO2_CAPTURE
+#PARAMETERS
+max_co2_captured_rate = 0.9;
+#CONSTRAINTS
+PCCC.co2_captured[t] <= max_co2_captured_rate * POWER_PLANT.co2_produced[t];
+POWER_PLANT.co2_produced[t] == PCCC.co2_captured[t] + PCCC.co2_released[t];
