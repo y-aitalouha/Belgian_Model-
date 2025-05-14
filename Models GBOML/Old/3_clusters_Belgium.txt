@@ -120,10 +120,10 @@ T = 8760*1;
 
         #HYPEREDGE BALANCES
             #CONSTRAINTS 
-            BALANCE.e_balanced[t] == WIND_OFFSHORE.e_produced[t] + BATTERIES.discharged[t] - BATTERIES.charged[t] + FUEL_CELLS.e_produced[t] 
+            BALANCE.e_balanced[t] == WIND_OFFSHORE.e_produced[t] + BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] + FUEL_CELLS.e_produced[t] 
                                     - ELECTROLYSIS_PLANTS.e_consumed[t] - DESALINATION.e_consumed[t] - H2O_STORAGE.e_consumed[t] - H2_STORAGE.e_consumed[t];
-            BALANCE.h2o_balanced[t] == DESALINATION.h2o_produced[t] - H2O_STORAGE.charged[t] + H2O_STORAGE.discharged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t] + FUEL_CELLS.h2o_produced[t]; 
-            BALANCE.h2_balanced[t] == ELECTROLYSIS_PLANTS.h2_produced[t] - H2_STORAGE.charged[t] + H2_STORAGE.discharged[t] - FUEL_CELLS.h2_consumed[t];
+            BALANCE.h2o_balanced[t] == DESALINATION.h2o_produced[t] - H2O_STORAGE.h2o_charged[t] + H2O_STORAGE.h2o_discharged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t] + FUEL_CELLS.h2o_produced[t]; 
+            BALANCE.h2_balanced[t] == ELECTROLYSIS_PLANTS.h2_produced[t] - H2_STORAGE.h2_charged[t] + H2_STORAGE.h2_discharged[t] - FUEL_CELLS.h2_consumed[t];
         
     #VARIABLES
     external: e_balanced[T] <- BALANCE.e_balanced[T];       // GWh(e) - net production of electricity from this cluster
@@ -195,29 +195,29 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];        // GWh(e)
-    external: exported[T];                                  // GWh(e)
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
     
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 
 #NODE UNITED_KINGDOM
@@ -262,30 +262,30 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            sum(PRODUCTION.imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
+            sum(PRODUCTION.e_imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];
-    external: exported[T];
+    external: e_imported[T] <- PRODUCTION.e_imported[T];
+    external: e_exported[T];
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
 
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 
 
@@ -395,13 +395,13 @@ T = 8760*1;
             
         #HYPEREDGE BALANCES 
             #CONSTRAINTS
-            BALANCE.e_balanced[t] == BATTERIES.discharged[t] - BATTERIES.charged[t] - H2_STORAGE.e_consumed[t]
+            BALANCE.e_balanced[t] == BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] - H2_STORAGE.e_consumed[t]
                                       + FUEL_CELLS.e_produced[t] - ELECTROLYSIS_PLANTS.e_consumed[t] - DAC.e_consumed[t]; 
-            BALANCE.ng_balanced[t] == REGAS.imported[t] - REGAS.exported[t] + NG_INTERCONNECTION_NV.imported[t] - NG_INTERCONNECTION_NV.exported[t] + NG_INTERCONNECTION_UK.imported[t] - NG_INTERCONNECTION_UK.exported[t]
-                                    + NG_INTERCONNECTION_FR.imported[t] - NG_INTERCONNECTION_FR.exported[t] + REGAS_GREEN.imported[t] - REGAS_GREEN.exported[t] + METHANATION.ng_produced[t];
-            BALANCE.h2_balanced[t] == REGAS_H2.imported[t] - REGAS_H2.exported[t] + H2_INTERCONNECTION.imported[t] - H2_INTERCONNECTION.exported[t] + H2_INTERCONNECTION_FR.imported[t] - H2_INTERCONNECTION_FR.exported[t] 
-                                    + H2_INTERCONNECTION_UK.imported[t] - H2_INTERCONNECTION_UK.exported[t] + H2_INTERCONNECTION_NV.imported[t] - H2_INTERCONNECTION_NV.exported[t] + ELECTROLYSIS_PLANTS.h2_produced[t] 
-                                    - H2_STORAGE.charged[t] + H2_STORAGE.discharged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t];
+            BALANCE.ng_balanced[t] == REGAS.ng_imported[t] - REGAS.ng_exported[t] + NG_INTERCONNECTION_NV.ng_imported[t] - NG_INTERCONNECTION_NV.ng_exported[t] + NG_INTERCONNECTION_UK.ng_imported[t] - NG_INTERCONNECTION_UK.ng_exported[t]
+                                    + NG_INTERCONNECTION_FR.ng_imported[t] - NG_INTERCONNECTION_FR.ng_exported[t] + REGAS_GREEN.ng_imported[t] - REGAS_GREEN.ng_exported[t] + METHANATION.ng_produced[t];
+            BALANCE.h2_balanced[t] == REGAS_H2.h2_imported[t] - REGAS_H2.h2_exported[t] + H2_INTERCONNECTION.h2_imported[t] - H2_INTERCONNECTION.h2_exported[t] + H2_INTERCONNECTION_FR.h2_imported[t] - H2_INTERCONNECTION_FR.h2_exported[t] 
+                                    + H2_INTERCONNECTION_UK.h2_imported[t] - H2_INTERCONNECTION_UK.h2_exported[t] + H2_INTERCONNECTION_NV.h2_imported[t] - H2_INTERCONNECTION_NV.h2_exported[t] + ELECTROLYSIS_PLANTS.h2_produced[t] 
+                                    - H2_STORAGE.h2_charged[t] + H2_STORAGE.h2_discharged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t];
             BALANCE.co2_balanced[t] == DAC.co2_captured[t] - METHANATION.co2_consumed[t];
             BALANCE.co2_captured[t] == DAC.co2_captured[t] + REGAS_GREEN.co2_captured[t];
 
@@ -448,7 +448,7 @@ T = 8760*1;
 
 #HYPEREDGE ZEEBRUGGE_BALANCE
     #CONSTRAINTS
-    electricity : HV_OFF_ZB.e_forward_out[t] - HV_OFF_ZB.e_reverse_in[t] + DENMARK.imported[t] - DENMARK.exported[t] + UNITED_KINGDOM.imported[t] - UNITED_KINGDOM.exported[t] 
+    electricity : HV_OFF_ZB.e_forward_out[t] - HV_OFF_ZB.e_reverse_in[t] + DENMARK.e_imported[t] - DENMARK.e_exported[t] + UNITED_KINGDOM.e_imported[t] - UNITED_KINGDOM.e_exported[t] 
     + ZEEBRUGGE.e_balanced[t] == HV_ZB_INL.e_forward_in[t] - HV_ZB_INL.e_reverse_out[t] + PIPE_H2_ZB_INL.e_consumed[t];
     methane : ZEEBRUGGE.ng_balanced[t] == PIPE_NG_ZB_INL.flow_forward_in[t] - PIPE_NG_ZB_INL.flow_reverse_out[t];
     hydrogen : PIPE_H2_OFF_ZB.flow_forward_out[t] - PIPE_H2_OFF_ZB.flow_reverse_in[t] + ZEEBRUGGE.h2_balanced[t] == PIPE_H2_ZB_INL.flow_forward_in[t] - PIPE_H2_ZB_INL.flow_reverse_out[t];
@@ -495,30 +495,30 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];        // GWh(e)
-    external: exported[T];                                  // GWh(e)
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
-    sum(imported[i] for i in [0:T-1]) <= max_import;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
 
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 #NODE DEUTSCHLAND
 
@@ -557,30 +557,30 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];        // GWh(e)
-    external: exported[T];                                  // GWh(e)
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
-    sum(imported[i] for i in [0:T-1]) <= max_import;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
 
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 
 #NODE LUXEMBOURG
@@ -620,30 +620,30 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];        // GWh(e)
-    external: exported[T];                                  // GWh(e)
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
-    sum(imported[i] for i in [0:T-1]) <= max_import;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
 
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 #NODE FRANCE
 
@@ -688,30 +688,30 @@ T = 8760*1;
 
             #NODE PRODUCTION
             #VARIABLES
-            external: imported[T];                          // GWh(e)
+            external: e_imported[T];                          // GWh(e)
             #CONSTRAINTS
-            imported[t] >= 0; 
+            e_imported[t] >= 0; 
 
             #HYPEREDGE IMPORT
             #PARAMETERS
             share_import = 0.01;
             #CONSTRAINTS
-            sum(PRODUCTION.imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
-            PRODUCTION.imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
+            sum(PRODUCTION.e_imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
         
 
     #VARIABLES
-    external: imported[T] <- PRODUCTION.imported[T];        // GWh(e)
-    external: exported[T];                                  // GWh(e)
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
 
     #CONSTRAINTS
-    exported[t] >= 0;
-    imported[t] <= import_capacity;
-    exported[t] <= export_capacity;
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
 
     #OBJECTIVES
-    min import_cost: imported[t] * import_cost; 
-    max export_cost: exported[t] * export_cost;
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
 
 // Inland Cluster
 
@@ -966,23 +966,23 @@ T = 8760*1;
             #CONSTRAINTS
             BALANCE.e_balanced[t] == PV.e_produced[t] +  WIND_ONSHORE.e_produced[t] + NUCLEAR.e_produced[t] + BIOMASS.e_produced[t] + WASTE.e_produced[t] 
                                     + CHP.e_produced[t] + CCGT.e_produced[t] + OCGT.e_produced[t] - ELECTROLYSIS_PLANTS.e_consumed[t] + FUEL_CELLS.e_produced[t] - BIOMETHANE.e_consumed[t]
-                                    - SMR.e_consumed[t] + PUMPED_HYDRO.discharged[t] - PUMPED_HYDRO.charged[t] + BATTERIES.discharged[t] - BATTERIES.charged[t] - PCCC_SMR.e_consumed[t]
+                                    - SMR.e_consumed[t] + PUMPED_HYDRO.e_discharged[t] - PUMPED_HYDRO.e_charged[t] + BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] - PCCC_SMR.e_consumed[t]
                                     - PCCC_BM.e_consumed[t] - PCCC_WS.e_consumed[t] - PCCC_CCGT.e_consumed[t] - PCCC_OCGT.e_consumed[t] - PCCC_CHP.e_consumed[t] - DAC.e_consumed[t]
                                     - LOAD_SHIFTING.load_increase[t] + LOAD_SHIFTING.load_reduction[t] + LOAD_SHEDDING_1.load_reduction[t] + LOAD_SHEDDING_2.load_reduction[t]
                                     + LOAD_SHEDDING_4.load_reduction[t] + LOAD_SHEDDING_8.load_reduction[t] + LOAD_SHEDDING_UNLIM.load_reduction[t] - H2_STORAGE.e_consumed[t];
             BALANCE.inst_power[t] == PV.e_produced[t] +  WIND_ONSHORE.e_produced[t] + NUCLEAR.e_produced[t] + BIOMASS.e_produced[t] + WASTE.e_produced[t] 
-                                    + CHP.e_produced[t] + CCGT.e_produced[t] + OCGT.e_produced[t] + FUEL_CELLS.e_produced[t] + PUMPED_HYDRO.discharged[t] + BATTERIES.discharged[t]
+                                    + CHP.e_produced[t] + CCGT.e_produced[t] + OCGT.e_produced[t] + FUEL_CELLS.e_produced[t] + PUMPED_HYDRO.e_discharged[t] + BATTERIES.e_discharged[t]
                                     - PCCC_BM.e_consumed[t] - PCCC_WS.e_consumed[t]  - PCCC_CCGT.e_consumed[t] - PCCC_OCGT.e_consumed[t] - PCCC_CHP.e_consumed[t]; 
-            BALANCE.ng_balanced[t] == NG_INTERCONNECTION_NL.imported[t] - NG_INTERCONNECTION_NL.exported[t] + NG_INTERCONNECTION_FR.imported[t] - NG_INTERCONNECTION_FR.exported[t] 
-                                    + NG_INTERCONNECTION_DE.imported[t] - NG_INTERCONNECTION_DE.exported[t] + BIOMETHANE.ng_produced[t] + METHANATION.ng_produced[t] 
-                                    + NG_STORAGE.discharged[t] - NG_STORAGE.charged[t] - CHP.ng_consumed[t] - CCGT.ng_consumed[t] - OCGT.ng_consumed[t] 
-                                    + LINEPACK_NG.discharged[t] - LINEPACK_NG.charged[t] - SMR.ng_consumed[t];
-            BALANCE.h2_balanced[t] == H2_INTERCONNECTION_DE.imported[t] - H2_INTERCONNECTION_DE.exported[t] + H2_INTERCONNECTION_NL.imported[t] - H2_INTERCONNECTION_NL.exported[t] + H2_INTERCONNECTION.imported[t] - H2_INTERCONNECTION.exported[t] 
+            BALANCE.ng_balanced[t] == NG_INTERCONNECTION_NL.ng_imported[t] - NG_INTERCONNECTION_NL.ng_exported[t] + NG_INTERCONNECTION_FR.ng_imported[t] - NG_INTERCONNECTION_FR.ng_exported[t] 
+                                    + NG_INTERCONNECTION_DE.ng_imported[t] - NG_INTERCONNECTION_DE.ng_exported[t] + BIOMETHANE.ng_produced[t] + METHANATION.ng_produced[t] 
+                                    + NG_STORAGE.ng_discharged[t] - NG_STORAGE.ng_charged[t] - CHP.ng_consumed[t] - CCGT.ng_consumed[t] - OCGT.ng_consumed[t] 
+                                    + LINEPACK_NG.ng_discharged[t] - LINEPACK_NG.ng_charged[t] - SMR.ng_consumed[t];
+            BALANCE.h2_balanced[t] == H2_INTERCONNECTION_DE.h2_imported[t] - H2_INTERCONNECTION_DE.h2_exported[t] + H2_INTERCONNECTION_NL.h2_imported[t] - H2_INTERCONNECTION_NL.h2_exported[t] + H2_INTERCONNECTION.h2_imported[t] - H2_INTERCONNECTION.h2_exported[t] 
                                     +  ELECTROLYSIS_PLANTS.h2_produced[t] + SMR.h2_produced[t]
-                                    + H2_STORAGE.discharged[t] - H2_STORAGE.charged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t]; 
+                                    + H2_STORAGE.h2_discharged[t] - H2_STORAGE.h2_charged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t]; 
             BALANCE.co2_balanced[t] == PCCC_SMR.co2_captured[t] + PCCC_BM.co2_captured[t] + PCCC_WS.co2_captured[t] + PCCC_CCGT.co2_captured[t]
-                                    + PCCC_OCGT.co2_captured[t] + PCCC_CHP.co2_captured[t] + DAC.co2_captured[t] + CO2_STORAGE.discharged[t] - CO2_STORAGE.charged[t]
-                                    - METHANATION.co2_consumed[t] - CO2_EXPORT.exported[t];
+                                    + PCCC_OCGT.co2_captured[t] + PCCC_CHP.co2_captured[t] + DAC.co2_captured[t] + CO2_STORAGE.co2_discharged[t] - CO2_STORAGE.co2_charged[t]
+                                    - METHANATION.co2_consumed[t] - CO2_EXPORT.co2_exported[t];
             BALANCE.co2_released[t] == PCCC_SMR.co2_released[t] + PCCC_BM.co2_released[t] + PCCC_WS.co2_released[t] + PCCC_CCGT.co2_released[t] 
                                     + PCCC_OCGT.co2_released[t] + PCCC_CHP.co2_released[t];
             BALANCE.co2_air_captured[t] == DAC.co2_captured[t] + BIOMETHANE.co2_captured[t];
@@ -1020,8 +1020,8 @@ T = 8760*1;
 
 #HYPEREDGE INLAND_BALANCE
     #CONSTRAINTS
-    electricity : HV_ZB_INL.e_forward_out[t] - HV_ZB_INL.e_reverse_in[t] + INLAND.e_balanced[t] + INLAND.e_ens[t] + NETHERLANDS.imported[t] - NETHERLANDS.exported[t] 
-    + DEUTSCHLAND.imported[t] - DEUTSCHLAND.exported[t] + LUXEMBOURG.imported[t] - LUXEMBOURG.exported[t] + FRANCE.imported[t] - FRANCE.exported[t]
+    electricity : HV_ZB_INL.e_forward_out[t] - HV_ZB_INL.e_reverse_in[t] + INLAND.e_balanced[t] + INLAND.e_ens[t] + NETHERLANDS.e_imported[t] - NETHERLANDS.e_exported[t] 
+    + DEUTSCHLAND.e_imported[t] - DEUTSCHLAND.e_exported[t] + LUXEMBOURG.e_imported[t] - LUXEMBOURG.e_exported[t] + FRANCE.e_imported[t] - FRANCE.e_exported[t]
     == global.demand_el[t] + global.demand_el_ht[t] + INLAND.demand_el_tr[t];
 
     methane : PIPE_NG_ZB_INL.flow_forward_out[t] - PIPE_NG_ZB_INL.flow_reverse_in[t] + INLAND.ng_balanced[t] + INLAND.ng_ens[t] 
@@ -1030,7 +1030,7 @@ T = 8760*1;
     hydrogen : PIPE_H2_ZB_INL.flow_forward_out[t] - PIPE_H2_ZB_INL.flow_reverse_in[t] + INLAND.h2_balanced[t] + INLAND.h2_ens[t] 
     == global.demand_h2_industry[t] + global.demand_h2_heat[t] + global.demand_h2_transport[t] + global.demand_h2_transport2[t];
     
-    max_grid: HV_ZB_INL.e_forward_out[t] + INLAND.inst_power[t] + NETHERLANDS.imported[t] + DEUTSCHLAND.imported[t] + LUXEMBOURG.imported[t] + FRANCE.imported[t] <= global.grid_limit;
+    max_grid: HV_ZB_INL.e_forward_out[t] + INLAND.inst_power[t] + NETHERLANDS.e_imported[t] + DEUTSCHLAND.e_imported[t] + LUXEMBOURG.e_imported[t] + FRANCE.e_imported[t] <= global.grid_limit;
 
 #HYPEREDGE CO2_QUOTA
     #CONSTRAINTS
