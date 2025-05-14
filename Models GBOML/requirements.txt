@@ -1,0 +1,10 @@
+beautifulsoup4 @ file:///C:/b/abs_d5wytg_p0w/croot/beautifulsoup4-split_1718029833749/work
+gboml==0.1.10
+gurobipy==11.0.3
+matplotlib==3.9.3
+numpy==2.0.2
+openpyxl==3.1.5
+pandas==2.2.3
+seaborn==0.13.2
+scipy==1.13.1
+

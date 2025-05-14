@@ -1,0 +1,2 @@
+Method -1
+BarHomogeneous -1

@@ -1,0 +1,85 @@
+#TIMEHORIZON
+T=8760;
+
+#GLOBAL
+wacc = 0.07;
+number_years_horizon = T/8760;
+ 
+#NODE ALGERIA_RREH
+
+    #PARAMETERS
+
+        #NODE SOLAR_PV_PLANTS = import SOLAR_PV_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE WIND_PLANTS = import WIND_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE BATTERY_STORAGE = import BATTERY_STORAGE from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE HVDC = import HVDC from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE DESALINATION_PLANTS = import DESALINATION_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE DIRECT_AIR_CAPTURE_PLANTS = import DIRECT_AIR_CAPTURE_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE HYDROGEN_STORAGE = import HYDROGEN_STORAGE from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE CARBON_DIOXIDE_STORAGE = import CARBON_DIOXIDE_STORAGE from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE WATER_STORAGE = import WATER_STORAGE from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE DME_PLANTS = import DME_PLANTS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE LIQUEFIED_DME_STORAGE_HUB = import LIQUEFIED_DME_STORAGE_HUB from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE LIQUEFIED_DME_CARRIERS = import LIQUEFIED_DME_CARRIERS from "../Data/Data_RREH/GENERAL.txt";
+
+        #NODE DME_STORAGE_DESTINATION = import DME_STORAGE_DESTINATION from "../Data/Data_RREH/GENERAL.txt";
+
+            
+        #HYPEREDGE INLAND_POWER_BALANCE
+        #CONSTRAINTS
+        SOLAR_PV_PLANTS.electricity[t] + WIND_PLANTS.electricity[t] + BATTERY_STORAGE.electricity_out[t] == BATTERY_STORAGE.electricity_in[t] + HVDC.electricity_in[t];
+
+        #HYPEREDGE COASTAL_POWER_BALANCE
+        #CONSTRAINTS
+        HVDC.electricity_out[t] == ELECTROLYSIS_PLANTS.electricity[t] + HYDROGEN_STORAGE.electricity[t] + DESALINATION_PLANTS.electricity[t] + WATER_STORAGE.electricity[t] + DIRECT_AIR_CAPTURE_PLANTS.electricity[t] + CARBON_DIOXIDE_STORAGE.electricity[t] + DME_PLANTS.elec[t];
+
+        #HYPEREDGE COASTAL_HYDROGEN_BALANCE
+        #CONSTRAINTS
+        ELECTROLYSIS_PLANTS.hydrogen[t] + HYDROGEN_STORAGE.hydrogen_out[t] == HYDROGEN_STORAGE.hydrogen_in[t] + DIRECT_AIR_CAPTURE_PLANTS.hydrogen[t] + DME_PLANTS.hydrogen[t];
+
+        #HYPEREDGE COASTAL_WATER_BALANCE
+        #CONSTRAINTS
+        DESALINATION_PLANTS.water[t] + WATER_STORAGE.water_out[t] + DME_PLANTS.water[t] == WATER_STORAGE.water_in[t] + ELECTROLYSIS_PLANTS.water[t] + DIRECT_AIR_CAPTURE_PLANTS.water[t];
+
+        #HYPEREDGE COASTAL_CARBON_DIOXIDE_BALANCE
+        #CONSTRAINTS
+        DIRECT_AIR_CAPTURE_PLANTS.carbon_dioxide[t] + CARBON_DIOXIDE_STORAGE.carbon_dioxide_out[t] == CARBON_DIOXIDE_STORAGE.carbon_dioxide_in[t] + DME_PLANTS.carbon_dioxide[t];
+
+        #HYPEREDGE COASTAL_LIQUEFIED_DME_BALANCE
+        #CONSTRAINTS
+        DME_PLANTS.dme[t] + LIQUEFIED_DME_STORAGE_HUB.liquefied_dme_out[t] == LIQUEFIED_DME_STORAGE_HUB.liquefied_dme_in[t] + LIQUEFIED_DME_CARRIERS.liquefied_dme_in[t];
+
+
+    #VARIABLES
+    external: dme[T] <- DME_STORAGE_DESTINATION.liquefied_dme_in[T];        
+    external: dme_out[T] <- DME_STORAGE_DESTINATION.liquefied_dme_out[T];     
+    external: dme_in[T] <- LIQUEFIED_DME_CARRIERS.liquefied_dme_out[T]; 
+
+
+#NODE DEMAND
+ 
+    #PARAMETERS
+    DME_demand = import "../Data/Data_RREH/DME_demand.csv";
+
+    #VARIABLES
+    external: demand[T];
+
+    #CONSTRAINTS
+    demand[t] == DME_demand[t];
+
+#HYPEREDGE DESTINATION_LIQUEFIED_DME_BALANCE
+#CONSTRAINTS 
+ALGERIA_RREH.dme[t] + ALGERIA_RREH.dme_out[t] == ALGERIA_RREH.dme_in[t] + DEMAND.demand[t];

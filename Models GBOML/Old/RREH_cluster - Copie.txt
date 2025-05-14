@@ -1,0 +1,292 @@
+#TIMEHORIZON
+T=8760;
+
+#GLOBAL
+wacc = 0.07;
+nb_year = T/8760;
+demand_efuel = import "../Data/Demand/demand_efuel_ind_cook.csv";
+co2_emission_cost = 80.0 * 1/(10**3);                               // M€/kt(co2) - CO2 taxes
+
+
+#NODE ALGERIA_RREH
+
+    #PARAMETERS
+
+        // Electricity 
+
+        #NODE PV = import PV from ""../Templates/PV.txt" with
+        pre_installed_capacity = 0;                             // GW(e)        
+        production_profile = import "../Data/Data_RREH/pv_capacity_factors.csv"; 
+        nb_year = global.nb_year; 
+
+        #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+        pre_installed_capacity = 0;                             // GW(e)
+        production_profile = import "../Data/Data_RREH/wind_capacity_factors.csv";
+        nb_year = global.nb_year; 
+
+        #NODE BATTERIES = import BATTERIES from "../Templates/Battery.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE HVDC = import HVDC from "../Templates/HVDC.txt"with 
+        pre_installed_capacity = 0;                           // GW(e)
+        nb_year = global.nb_year;
+
+
+        // Hydrogen
+
+        #NODE H2_STORAGE = import H2_STORAGE from "../Templates/H2_storage.txt" with                                       
+        nb_year = global.nb_year;
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Templates/Electrolysis.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE H2_LIQUEFACTION = import HYDROGEN_LIQUEFACTION_PLANTS from "../Templates/Efuel.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE H2_GASIFICATION = import HYDROGEN_GASIFICATION_PLANTS from "../Templates/Efuel.txt" with 
+        nb_year = global.nb_year; 
+
+
+        // Water
+
+        #NODE DESALINATION_PLANTS = import DESALINATION_PLANTS from "../Templates/Desalination.txt" with 
+        nb_year = global.nb_year;    
+
+        #NODE H2O_STORAGE = import H2O_STORAGE from "../Templates/H2O_storage.txt" with
+        nb_year = global.nb_year; 
+
+
+        // Carbon dioxide
+ 
+        #NODE DAC = import DAC from "../Templates/DAC.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE CO2_STORAGE = import CO2_STORAGE from "../Templates/CO2_STORAGE.txt" with
+        nb_year = global.nb_year;
+         
+        #NODE PCCC_DME = import PCCC from "../Templates/PCCC.txt" with
+        nb_year = global.nb_year;
+        co2_emission_cost = global.co2_emission_cost; 
+
+        #HYPEREDGE CO2_CAPTURE_DME = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_DME;
+        POWER_PLANT <- DME_PLANTS;
+        
+
+        // Efuels
+
+        #NODE DME_PLANTS = import DME_PLANTS from "../Templates/DME.txt"; 
+
+        #NODE DME_STORAGE = import DME_STORAGE_HUB from "../Templates/DME.txt" with 
+        nb_year = global.nb_year;
+
+
+        
+        #NODE BALANCE
+            #VARIABLES
+            external: e_balanced[T];                // GWh(e) - net production of electricity from this cluster
+            external: h2o_balanced[T];              // kt(h2o) - net production of water from this cluster
+            external: co2_balanced[T]; 
+            external: h2_balanced[T]; 
+
+        #NODE PRODUCTION
+            #VARIABLES
+            external: h2_exported[T];  
+            external: dme_exported[T];
+
+
+        #HYPEREDGE INLAND_POWER_BALANCE
+        #CONSTRAINTS
+        BALANCE.e_balanced[t] == PV.e_produced[t] + WIND_ONSHORE.e_produced[t] + BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] - HVDC.e_forward_in[t];
+
+        #HYPEREDGE COASTAL_POWER_BALANCE
+        #CONSTRAINTS
+        HVDC.e_forward_out[t] == ELECTROLYSIS_PLANTS.e_consumed[t] + H2_STORAGE.e_consumed[t] + DESALINATION_PLANTS.e_consumed[t] - PCCC_DME.e_consumed[t]
+                              + H2O_STORAGE.e_consumed[t] + DAC.e_consumed[t] + CO2_STORAGE.e_consumed[t] + DME_PLANTS.e_consumed[t];
+
+        #HYPEREDGE COASTAL_HYDROGEN_BALANCE
+        #CONSTRAINTS
+        BALANCE.h2_balanced[t] == ELECTROLYSIS_PLANTS.h2_produced[t] + H2_STORAGE.h2_discharged[t] - H2_STORAGE.h2_charged[t] - DME_PLANTS.h2_consumed[t] - H2_LIQUEFACTION.h2_consumed[t];
+
+        #HYPEREDGE COASTAL_LIQUEFIED_HYDROGEN_BALANCE
+        #CONSTRAINTS
+        PRODUCTION.h2_exported[t] == H2_LIQUEFACTION.h2_liq_produced[t];
+
+
+        #HYPEREDGE COASTAL_WATER_BALANCE
+        #CONSTRAINTS 
+        BALANCE.h2o_balanced[t] == DESALINATION_PLANTS.h2o_produced[t] + H2O_STORAGE.h2o_discharged[t] + DME_PLANTS.h2o_consumed[t] - H2O_STORAGE.h2o_charged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t];
+
+        #HYPEREDGE COASTAL_CARBON_DIOXIDE_BALANCE
+        #CONSTRAINTS
+        BALANCE.co2_balanced[t] == DAC.co2_captured[t] + CO2_STORAGE.co2_discharged[t] - CO2_STORAGE.co2_charged[t] - DME_PLANTS.co2_consumed[t] 
+        - PCCC_DME.co2_released[t] + PCCC_DME.co2_captured[t];
+
+        #HYPEREDGE COASTAL_DME_BALANCE
+        #CONSTRAINTS
+        PRODUCTION.dme_exported[t] == DME_PLANTS.dme_produced[t] + DME_STORAGE.dme_discharged[t] - DME_STORAGE.dme_charged[t];
+  
+        
+    #VARIABLES
+    external: e_balanced[T] <- BALANCE.e_balanced[T];       // GWh(e) - net production of electricity from this cluster
+    external: h2_balanced[T] <- BALANCE.h2_balanced[T];     // GWh(h2_lhv) - net production of hydrogen from this cluster
+    external: h2o_balanced[T] <- BALANCE.h2o_balanced[T];   // kt(h2o) - net production of water from this cluster
+    external: co2_balanced[T] <- BALANCE.co2_balanced[T];
+    external: h2_exported[T] <- PRODUCTION.h2_exported[T];
+    external: dme_exported[T] <- PRODUCTION.dme_exported[T];
+
+
+    #CONSTRAINTS
+    h2o_balanced[t] == 0;
+    co2_balanced[t] == 0;
+
+
+
+// Transport & interconnection
+
+#NODE SHIP_DME = import SHIPS from "../Templates/Carrier.txt" with 
+schedule = import "../Data/carrier_schedule_rreh_zeebrugge.csv";
+nb_year = global.nb_year;
+full_capex = 1.75;
+
+#NODE SHIP_H2 = import SHIPS from "../Templates/Carrier.txt" with 
+schedule = import "../Data/carrier_schedule_rreh_zeebrugge.csv";
+nb_year = global.nb_year;
+full_capex = 14;
+
+
+
+#HYPEREDGE BELGIUM_ALGERIA_RREH_BALANCE
+    
+    #CONSTRAINTS 
+
+    dme: ALGERIA_RREH.dme_exported[t] == SHIP_DME.flow_in[t]; 
+    h2: ALGERIA_RREH.h2_exported[t] == SHIP_H2.flow_in[t];   
+
+
+
+#NODE BELGIUM
+    
+    #PARAMETERS
+
+        // Electricity 
+
+        #NODE PV = import PV from ""../Templates/PV.txt" with
+        pre_installed_capacity = 0;                             // GW(e)        
+        production_profile = import "../Data/Data_RREH/pv_capacity_factors.csv"; 
+        nb_year = global.nb_year; 
+
+        #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+        pre_installed_capacity = 0;                             // GW(e)
+        production_profile = import "../Data/Data_RREH/wind_capacity_factors.csv";
+        nb_year = global.nb_year; 
+
+        #NODE BATTERIES = import BATTERIES from "../Templates/Battery.txt" with 
+        nb_year = global.nb_year; 
+
+
+        // Hydrogen
+
+        #NODE H2_STORAGE = import H2_STORAGE from "../Templates/H2_storage.txt" with                                       
+        nb_year = global.nb_year;
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Templates/Electrolysis.txt" with 
+        nb_year = global.nb_year; 
+
+        #NODE H2_GASIFICATION = import HYDROGEN_GASIFICATION_PLANTS from "../Templates/Efuel.txt" with 
+        nb_year = global.nb_year; 
+
+
+        // Water
+
+        #NODE DESALINATION_PLANTS = import DESALINATION_PLANTS from "../Templates/Desalination.txt" with 
+        nb_year = global.nb_year;    
+
+        #NODE H2O_STORAGE = import H2O_STORAGE from "../Templates/H2O_storage.txt" with
+        nb_year = global.nb_year; 
+
+
+        // Carbon dioxide
+ 
+        #NODE DAC = import DAC from "../Templates/DAC.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE CO2_STORAGE = import CO2_STORAGE from "../Templates/CO2_STORAGE.txt" with
+        nb_year = global.nb_year;
+         
+        #NODE PCCC_DME = import PCCC from "../Templates/PCCC.txt" with
+        nb_year = global.nb_year;
+        co2_emission_cost = global.co2_emission_cost; 
+
+        #HYPEREDGE CO2_CAPTURE_DME = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_DME;
+        POWER_PLANT <- DME_PLANTS;
+        
+
+        // Efuels
+
+        #NODE DME_PLANTS = import DME_PLANTS from "../Templates/DME.txt"; 
+
+        #NODE DME_STORAGE = import DME_STORAGE_HUB from "../Templates/DME.txt" with 
+        nb_year = global.nb_year;
+
+
+        #NODE BALANCE
+            #VARIABLES
+            external: e_balanced[T];                // GWh(e) - net production of electricity from this cluster
+            external: h2o_balanced[T];              // kt(h2o) - net production of water from this cluster
+            external: h2_balanced[T];               // GWh(h2_lhv) - net production of hydrogen from this cluster
+            external: co2_balanced[T];
+            external: dme_balanced[T];
+ 
+
+        #HYPEREDGE INLAND_POWER_BALANCE
+        #CONSTRAINTS
+        BALANCE.e_balanced[t] == PV.e_produced[t] + WIND_ONSHORE.e_produced[t] + BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] - ELECTROLYSIS_PLANTS.e_consumed[t] - H2_STORAGE.e_consumed[t]
+                                 - DESALINATION_PLANTS.e_consumed[t] + PCCC_DME.e_consumed[t] - H2O_STORAGE.e_consumed[t] - DAC.e_consumed[t] - CO2_STORAGE.e_consumed[t] - DME_PLANTS.e_consumed[t];
+
+        #HYPEREDGE IMPORTED_HYDROGEN_BALANCE
+        #CONSTRAINTS
+        SHIP_H2.flow_out[t] == H2_GASIFICATION.h2_liq_consumed[t];
+                
+        #HYPEREDGE INLAND_HYDROGEN_BALANCE
+        #CONSTRAINTS
+        BALANCE.h2_balanced[t] == H2_GASIFICATION.h2_produced[t] + ELECTROLYSIS_PLANTS.h2_produced[t] + H2_STORAGE.h2_discharged[t] - H2_STORAGE.h2_charged[t] - DME_PLANTS.h2_consumed[t];
+
+        #HYPEREDGE INLAND_WATER_BALANCE
+        #CONSTRAINTS 
+        BALANCE.h2o_balanced[t] == DESALINATION_PLANTS.h2o_produced[t] + H2O_STORAGE.h2o_discharged[t] + DME_PLANTS.h2o_produced[t] - H2O_STORAGE.h2o_charged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t];
+
+        #HYPEREDGE INLAND_CARBON_DIOXIDE_BALANCE
+        #CONSTRAINTS
+        BALANCE.co2_balanced[t] == DAC.co2_captured[t] + CO2_STORAGE.co2_discharged[t] - CO2_STORAGE.co2_charged[t] - DME_PLANTS.co2_consumed[t] 
+        - PCCC_DME.co2_released[t] + PCCC_DME.co2_captured[t];
+
+        #HYPEREDGE INLAND_DME_BALANCE
+        #CONSTRAINTS
+        BALANCE.dme_balanced[t] == DME_PLANTS.dme_produced[t] + DME_STORAGE.dme_discharged[t] - DME_STORAGE.dme_charged[t];
+  
+  
+        
+    #VARIABLES
+    external: e_balanced[T] <- BALANCE.e_balanced[T];       // GWh(e) - net production of electricity from this cluster
+    external: h2_balanced[T] <- BALANCE.h2_balanced[T];     // GWh(h2_lhv) - net production of hydrogen from this cluster
+    external: h2o_balanced[T] <- BALANCE.h2o_balanced[T];   // kt(h2o) - net production of water from this cluster
+    external: co2_balanced[T] <- BALANCE.co2_balanced[T];
+    external: dme_balanced[T] <- BALANCE.dme_balanced[T];
+
+
+    #CONSTRAINTS
+    h2o_balanced[t] == 0;
+    co2_balanced[t] == 0;
+
+
+#HYPEREDGE INLAND_BALANCE
+   
+    #CONSTRAINTS
+    dme: SHIP_DME.flow_out[t] + BELGIUM.dme_balanced[t] == global.demand_efuel[t];
+
+ 
+
+
+ 

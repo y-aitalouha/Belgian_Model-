@@ -1,0 +1,1369 @@
+#TIMEHORIZON
+T = 8760*1; 
+
+#GLOBAL
+    // Demand profiles
+    
+    demand_el = import "../Data/demand_el.csv";                    // GWh(e) - tertiary, industry, residential and railway electricity demand
+    demand_el_ht = import "../Data/demand_el_ht.csv";                           // GWh(e) - electricity heating demand
+    demand_el_tr = import "../Data/demand_el_tr.csv";                           // GWh(e) - electricity demand for EV charging
+
+    demand_ng_heat = import "../Data/demand_ng_ht.csv";                         // GWh(ng_lhv) - natural gas demand for the heating sector in the residential and tertiary areas
+    demand_ng_industry = import "../Data/demand_ng_id.csv";                     // GWh(ng_lhv) - industrial natural gas demand
+    demand_ng_transport = import "../Data/demand_ng_tr.csv";                    // GWh(ng_lhv) - natural gas demand for the road transport
+    demand_ng_transport2 = import "../Data/demand_ng_tr2.csv";                  // GWh(ng_lhv) - natural gas demand for the shipping sector
+
+    demand_h2_industry = import "../Data/demand_h2_id.csv";                     // GWh(h2_lhv) - industrial hydrogen demand 
+    demand_h2_transport = import "../Data/demand_h2_tr.csv";                    // GWh(h2_lhv) - hydrogen demand for the road transport
+    demand_h2_transport2 = import "../Data/demand_h2_tr2.csv";                  // GWh(h2_lhv) - hydrogen demand for the shipping, aviation and rail sectors
+    demand_h2_heat = import "../Data/demand_h2_ht.csv";                         // GWh(h2_lhv) - hydrogen demand for the heating sector in the residential and tertiary areas
+    
+    // Production profiles for Belgium
+    woff_profile = import "../Data/load_factor_woff.csv";                       // production profile for wind offshore turbines, adimensional 
+    won_profile = import "../Data/load_factor_won.csv";                         // production profile for wind onshore turbines, adimensional
+    pv_profile = import "../Data/load_factor_pv.csv";                           // production profile for PVs, adimensional
+    // Other
+    nb_year = T/8760;
+
+    // CO2 related
+    spec_co2_emission = 0.202;                                          // kt(co2)/GWh(ng lhv) - co2 emitted during the combustion of natural gas or ch4
+    co2_emission_cost = 80.0 * 1/(10**3);                               // M€/kt(co2) - CO2 taxes
+    max_co2_captured_rate = 0.9;                                        // max captured rate for PCCCs
+    co2_quota_emission = 0 * nb_year;                                   // kt(co2) - net amount of the CO2 emission allowed for 1 year
+    
+    hhv_ng = 14.5;                                                      // kWh/kg
+    hhv_ng_m3 = 11.267;                                                 // kWh/m3
+    lhv_ng = 13.083;                                                    // kWh/kg
+    lhv_to_hhv_ng = hhv_ng/lhv_ng;
+    lhv_ng_m3 = 10.166;                                                 // kWh/m3
+    import_ng_lhv = 1/lhv_to_hhv_ng;                                    // capacity of natural gas pipeline given in hhv, this parameter is used to convert them in lhv
+    hhv_ch4 = 15.417;                                                   // kWh/kg
+    hhv_ch4_m3 = 11.038;                                                // kWh/m3
+    lhv_ch4 = 13.889;                                                   // kWh/kg
+    lhv_to_hhv_ch4 = hhv_ch4/lhv_ch4;
+    hhv_h2 = 39.367;                                                    // kWh/kg
+    hhv_h2_m3 = 3.539;                                                  // kWh/m3 
+    lhv_h2 = 33.322;                                                    // kWh/kg
+    lhv_to_hhv_h2 = hhv_h2/lhv_h2; 
+
+    // Other costs
+    wacc = 0.07;                                                        // Weighted average cost of capital used for all technologies
+    // limit on the electricity network
+    grid_limit = 23;
+                                                         // GW(e)
+    // repurposing of H2 lines
+    max_total_h2_import = 1 * 200000 *  nb_year;                        // GWh(h2_lhv) - max amount of h2 allowed to be imported yearly
+    H2_FR = 0;                                                          // if 1, natural gas pipeline from France is repurposed for the import of hydrogen. if 0, not repurposed
+    H2_NL = 1;                                                          // if 1, natural gas pipeline from Netherlands is repurposed for the import of hydrogen. if 0, not repurposed
+    H2_DE = 0;                                                          // if 1, natural gas pipeline from Germany is repurposed for the import of hydrogen. if 0, not repurposed
+    H2_UK = 0;                                                          // if 1, natural gas pipeline from United Kingdom is repurposed for the import of hydrogen. if 0, not repurposed
+    H2_NV = 0;                                                          // if 1, natural gas pipeline from Norway is repurposed for the import of hydrogen. if 0, not repurposed
+    H2_new_zb = 0;                                                      // if 1, new hydrogen pipeline can be installed at Zeebrugge for the import of hydrogen
+    H2_new_inl = 0;                                                     // if 1, new hydrogen pipeline can be installed at Zeebrugge for the import of hydrogen
+      
+    // cost of natural gas import
+    ng_import_cost_mean = 50/50;                                        // allow to change the mean price of natural gas (in the time series, the natural gas is 50€/MWh)
+
+    // elec mode
+    case_elec = 1;                                                      // if 1, it forces the model to transport all the energy from the offshore wind turbines in form of electricity
+
+     // Efuel profiles and properties
+    hhv_dme = 8.803;                                                         // kWh/kg or GWh/kt
+    lhv_dme = 8.01;                                                          // kWh/kg or GWh/kt
+    hhv_eth = 7.472;                                                         // kWh/kg
+    lhv_eth = 8.267;                                                         // kWh/kg 
+    lhv_ft = 12.264;                                                         // kWh/kg -> Each FT fuel has same LHV
+    hhv_meoh = 6.39;
+    lhv_meoh = 5.51;
+    
+    dme_on = 1;
+    ethanol_on = 1;
+    ft_on = 1;
+    meoh_on = 1;
+    h2_on = 1;
+
+
+// Offshore cluster 
+
+#NODE OFFSHORE
+
+    #PARAMETERS
+        
+        // Electricity
+
+        #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+        pre_installed_capacity = 0;                 // GW(e)     
+        production_profile = global.woff_profile;
+        nb_year = global.nb_year;
+
+        #NODE BATTERIES = import BATTERIES from "../Templates/Battery.txt" with 
+        nb_year = global.nb_year;
+        capex_energy = 60 * 1.2;
+        capex_power = 75 * 1.2;
+        fom_power = 0.54 * 1.2;                                                   // M€/GW(e)/yr
+        fom_energy = 0;                                                           // M€/GWh(e)/yr
+        vom_power = 1.6 * 1/(10**3) * 1.2;                                        // M€/GWh(e) of energy charged
+        vom_energy = 0;                                                           // M€/GWh(e) of energy stored
+
+        #NODE FUEL_CELLS = import FUEL_CELLS from "../Templates/Fuel_cells.txt" with 
+        nb_year = global.nb_year; 
+
+        // Hydrogen gas
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Templates/Electrolysis.txt" with 
+        capex = 333.33 + 0.5 + 168.3;               // M€/GW(e) - consider the cost of platform
+        fom = 0.02  * capex;                        // M€/GW(e)
+        nb_year = global.nb_year;
+
+        #NODE H2_STORAGE = import H2_STORAGE from "../Templates/H2_storage.txt" with                                       
+        nb_year = global.nb_year;
+        capex_power = 0;                                                                // M€/GW(h2_lhv)
+        capex_energy = 21 * 1.2;                                                              // M€/GWh(h2_lhv)
+        fom_power = 0.4 * 1.2;                                                                // M€/GW(h2_lhv)/yr
+        fom_energy = 0.0;                                                              // M€/GWh(h2_lhv)/yr
+        vom_power = 0.0;                                                                // M€/GWh(h2_lhv)
+        vom_energy = 0.0;                                                               // M€/GWh(h2_lhv)
+
+        // Water
+
+        #NODE DESALINATION = import DESALINATION_PLANTS from "../Templates/Desalination.txt" with 
+        nb_year = global.nb_year;    
+
+        #NODE H2O_STORAGE = import H2O_STORAGE from "../Templates/H2O_storage.txt" with
+        nb_year = global.nb_year;
+
+        // Balance
+
+        #NODE BALANCE
+            #VARIABLES
+            external: e_balanced[T];                // GWh(e) - net production of electricity from this cluster
+            external: h2o_balanced[T];              // kt(h2o) - net production of water from this cluster
+            external: h2_balanced[T];               // GWh(h2_lhv) - net production of hydrogen from this cluster
+
+        #HYPEREDGE BALANCES
+            #CONSTRAINTS 
+            BALANCE.e_balanced[t] == WIND_OFFSHORE.e_produced[t] + BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] + FUEL_CELLS.e_produced[t] 
+                                    - ELECTROLYSIS_PLANTS.e_consumed[t] - DESALINATION.e_consumed[t] - H2O_STORAGE.e_consumed[t] - H2_STORAGE.e_consumed[t];
+            BALANCE.h2o_balanced[t] == DESALINATION.h2o_produced[t] - H2O_STORAGE.h2o_charged[t] + H2O_STORAGE.h2o_discharged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t] + FUEL_CELLS.h2o_produced[t]; 
+            BALANCE.h2_balanced[t] == ELECTROLYSIS_PLANTS.h2_produced[t] - H2_STORAGE.h2_charged[t] + H2_STORAGE.h2_discharged[t] - FUEL_CELLS.h2_consumed[t];
+        
+    #VARIABLES
+    external: e_balanced[T] <- BALANCE.e_balanced[T];       // GWh(e) - net production of electricity from this cluster
+    external: h2_balanced[T] <- BALANCE.h2_balanced[T];     // GWh(h2_lhv) - net production of hydrogen from this cluster
+    external: h2o_balanced[T] <- BALANCE.h2o_balanced[T];   // kt(h2o) - net production of water from this cluster
+
+    #CONSTRAINTS
+    h2o_balanced[t] == 0;
+
+
+// Offshore - Zeebrugge interconnections
+
+#NODE HV_OFF_ZB = import HVAC from "../Templates/HVAC.txt"with 
+    pre_installed_capacity = 2.3;                           // GW(e)
+    nb_year = global.nb_year;
+
+
+#NODE PIPE_H2_OFF_ZB = import PIPE from "../Templates/Pipe.txt" with 
+    pre_installed_capacity_forward = 0;                     // GW(h2_lhv)
+    pre_installed_capacity_reverse = 0;                     // GW(h2_lhv)
+    max_capacity_forward = (1 - global.case_elec) * 100;    // GW(h2_lhv)
+    length = 40;                                            // km
+    // data from TYNDP of ENTSOE-G
+    capex = 0.4 * length;                                   // M€/GW(h2_lhv)
+    fom = 0.03 * capex;                                     // M€/GW(h2_lhv)
+    efficiency_pipe = 1-(2.2/100000)*length;
+    nb_year = global.nb_year;
+
+// Offshore balance
+
+#HYPEREDGE OFFSHORE_BALANCE
+    #CONSTRAINTS
+    electricity : OFFSHORE.e_balanced[t] == HV_OFF_ZB.e_forward_in[t] - HV_OFF_ZB.e_reverse_out[t] + PIPE_H2_OFF_ZB.e_consumed[t];
+    hydrogen : OFFSHORE.h2_balanced[t] == PIPE_H2_OFF_ZB.flow_forward_in[t] - PIPE_H2_OFF_ZB.flow_reverse_out[t];
+
+// Countries with electric connection to Zeebrugge
+
+#NODE DENMARK
+
+    #PARAMETERS
+        // data from Elia Roadmap to net zero in 2040 
+        energy_electricity = 0;
+        e_import_capacity = 2;                                // GW(e)
+        e_export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 2 GW
+        e_import_cost = 0.0576;                               // M€/GWh(e)
+        e_export_cost = 0.05;                                 // M€/GWh(e)
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_DK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 22.2;                  // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff_DK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 23;                    // GW(e)
+            max_capacity = 23;                              // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_DK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 6.7;                   // GW(e)
+            max_capacity = 6.7;                             // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= e_import_capacity;
+    e_exported[t] <= e_export_capacity;
+    
+    #OBJECTIVES
+    min e_import_cost: e_imported[t] * e_import_cost; 
+    max e_export_cost: e_exported[t] * e_export_cost;
+
+
+#NODE UNITED_KINGDOM
+
+    #PARAMETERS
+        // data from Elia Roadmap to net zero in 2040 
+        energy_electricity = 0;
+        e_import_capacity = 2.4;                              // GW(e)
+        e_export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 2.863 GW
+        e_import_cost = 0.0706;
+        e_export_cost = 0.0447;
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_UK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 93.538;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff_UK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 100.592;               // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_UK.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 39.755;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE NUCLEAR = import NUCLEAR from "../Templates/Nuclear.txt" with
+            pre_installed_capacity = 5.6;                   // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            fuel_cost = 0;                                  // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            sum(PRODUCTION.e_imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];
+    external: e_exported[T];
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= e_import_capacity;
+    e_exported[t] <= e_export_capacity;
+
+    #OBJECTIVES
+    min e_import_cost: e_imported[t] * e_import_cost; 
+    max e_export_cost: e_exported[t] * e_export_cost;
+
+
+
+// Zeebrugge Cluster
+
+#NODE ZEEBRUGGE
+
+    #PARAMETERS
+
+        // Electricity
+
+        #NODE BATTERIES = import BATTERIES from "../Templates/Battery.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE FUEL_CELLS = import FUEL_CELLS from "../Templates/Fuel_cells.txt" with
+        nb_year = global.nb_year;
+
+        // Natural gas
+
+        #NODE REGAS = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = 0;                                                        // GW(ng_lhv or ch4_lhv) - assumed regas only used for green methane in this model but real capacity is 29.7083 GW ng_hhv
+        export_capacity = 0;                                                        // GW(ng_lhv or ch4_lhv)
+        import_costs_ts = import "../Data/cost_import_ng_regas.csv";                        // M€/GWh(ng_lhv or ch4_lhv)
+        nb_year = global.nb_year;
+
+        #NODE NG_INTERCONNECTION_NV = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = (1 - global.H2_NV) * 20.3375 * global.import_ng_lhv;
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model
+        import_costs_ts = import "../Data/cost_import_ng_nv.csv";                           // M€/GWh(ng_lhv)
+        import_costs = global.ng_import_cost_mean * import_costs_ts;                // M€/GWh(ng_lhv)
+        nb_year = global.nb_year;
+
+        #NODE NG_INTERCONNECTION_UK = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = (1 - global.H2_UK) * 27.1542  * global.import_ng_lhv;     // GW(ng_lhv)
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model but real value is 33.475 GW ng_hhv
+        import_costs_ts = import "../Data/cost_import_ng_uk.csv";                           // M€/GWh(ng_lhv)
+        import_costs = global.ng_import_cost_mean * import_costs_ts;                // M€/GWh(ng_lhv)
+        export_cost = 1.4177 * 1/(10**3);                                           // M€/GWh(ng_lhv)
+        nb_year = global.nb_year;
+
+        #NODE NG_INTERCONNECTION_FR = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = (1 - global.H2_FR) * 10.3875 * global.import_ng_lhv;      // GW(ng_lhv)
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model
+        import_costs_ts = import "../Data/cost_import_ng_fr.csv";                           // M€/GWh(ng_lhv)
+        import_costs = global.ng_import_cost_mean * import_costs_ts;                // M€/GWh(ng_lhv)
+        nb_year = global.nb_year;
+
+        #NODE REGAS_GREEN = import NG_GREEN_INTERCONNECTION from "../Templates/NG_green_interconnection.txt" with
+        import_capacity = 29.7083 * global.import_ng_lhv;                           // GW(ng_lhv)
+        import_costs = import "../Data/cost_import_ng_regas_green.csv";                     // M€/GWh(ng_lhv)        
+        spec_co2_captured = global.spec_co2_emission;                               // kt(co2)/GWh(ng lhv)
+        nb_year = global.nb_year;
+
+        #NODE METHANATION = import METHANATION_PLANTS from "../Templates/Methanation.txt" with 
+        nb_year = global.nb_year;
+
+
+        // Hydrogen
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Templates/Electrolysis.txt"with 
+        nb_year = global.nb_year;
+
+        #NODE REGAS_H2 = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = 0;                                                        // GW(h2_lhv)
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_new_zb;                                         // GW(h2_lhv)
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION_NV = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_NV * 0.8 * 20.3375 * global.import_ng_lhv;      // GW(h2_lhv)
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        max_import = global.max_total_h2_import;
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION_UK = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_UK * 0.8 * 27.1542 * global.import_ng_lhv;      // GW(h2_lhv)
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        max_import = global.max_total_h2_import;
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION_FR = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_FR * 0.8 * 10.3875 * global.import_ng_lhv;      // GW(h2_lhv)
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        max_import = global.max_total_h2_import;
+        nb_year = global.nb_year;
+        
+        #NODE H2_STORAGE = import H2_STORAGE from "../Templates/H2_storage.txt" with                                       
+        nb_year = global.nb_year;
+
+
+        // Carbon dioxide
+
+        #NODE DAC = import DAC from "../Templates/DAC.txt" with 
+        nb_year = global.nb_year;
+
+        // Water  
+        
+        #NODE DESALINATION = import DESALINATION_PLANTS from "../Templates/Desalination.txt" with 
+        nb_year = global.nb_year; 
+        
+        #NODE H2O_STORAGE = import H2O_STORAGE from "../Templates/H2O_storage.txt" with
+        nb_year = global.nb_year;   
+
+ 
+        // Efuels
+
+        #NODE DME_PLANTS = import DME_PLANTS from "../Templates/DME.txt" with 
+        nb_year = global.nb_year; 
+
+        #NODE DME_storage = import DME_STORAGE_HUB from "../Templates/DME.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE ETH_PLANTS = import ETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE BIOETH_PLANTS = import BIOETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE CELLETH_PLANTS = import CELLETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE ethanol_storage = import ETHANOL_STORAGE_HUB from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE FT_PLANTS = import FT_PLANTS from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE REFINERY = import REFINERY from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE REFINED_PETROL_STORAGE = import REFINED_PETROL_STORAGE from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE PETROL_STORAGE = import PETROL_STORAGE from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE METHANOL_PLANTS = import METHANOL_PLANTS from "../Templates/Methanol.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE METHANOL_STORAGE = import METHANOL_LIQ_STORAGE from "../Templates/Methanol.txt" with 
+        nb_year = global.nb_year;
+
+
+ 
+        // Balance 
+
+        #NODE BALANCE
+            #VARIABLES
+            external: e_balanced[T];                                // GWh(e) - net production of electricity from this cluster
+            external: ng_balanced[T];                               // GWh(ng_lhv) - net production of methane from this cluster
+            external: h2_balanced[T];                               // GWh(h2_lhv) - net production of hydrogen from this cluster
+            external: h2o_balanced[T];                              // kt(h2o) - net production of water from this cluster
+            external: co2_balanced[T];                              // kt(co2)
+            external: co2_captured[T];                              // kt(co2)
+            external: dme_balanced[T];                              // GWh(dme_lhv)
+            external: ethanol_balanced[T];                              // GWh(ethanol_lhv)
+            external: methanol_balanced[T];                         // GWh(meoh_lhv)
+            external: ft_balanced[T];                               // GWh()
+            external: diesel_balanced[T];                           // GWh()
+            external: gasoline_balanced[T];                         // GWh()
+            external: kerosene_balanced[T];                         // GWh()
+            
+            
+        #HYPEREDGE BALANCES 
+            #CONSTRAINTS
+            BALANCE.e_balanced[t] == BATTERIES.e_discharged[t] - BATTERIES.e_charged[t] - H2_STORAGE.e_consumed[t]
+                                      + FUEL_CELLS.e_produced[t] - ELECTROLYSIS_PLANTS.e_consumed[t] - DAC.e_consumed[t]; 
+            BALANCE.ng_balanced[t] == REGAS.ng_imported[t] - REGAS.ng_exported[t] + NG_INTERCONNECTION_NV.ng_imported[t] - NG_INTERCONNECTION_NV.ng_exported[t] + NG_INTERCONNECTION_UK.ng_imported[t] - NG_INTERCONNECTION_UK.ng_exported[t]
+                                    + NG_INTERCONNECTION_FR.ng_imported[t] - NG_INTERCONNECTION_FR.ng_exported[t] + REGAS_GREEN.ng_imported[t] - REGAS_GREEN.ng_exported[t] + METHANATION.ng_produced[t];
+            BALANCE.h2_balanced[t] == REGAS_H2.h2_imported[t] - REGAS_H2.h2_exported[t] + H2_INTERCONNECTION.h2_imported[t] - H2_INTERCONNECTION.h2_exported[t] + H2_INTERCONNECTION_FR.h2_imported[t] - H2_INTERCONNECTION_FR.h2_exported[t] 
+                                    + H2_INTERCONNECTION_UK.h2_imported[t] - H2_INTERCONNECTION_UK.h2_exported[t] + H2_INTERCONNECTION_NV.h2_imported[t] - H2_INTERCONNECTION_NV.h2_exported[t] + ELECTROLYSIS_PLANTS.h2_produced[t] 
+                                    - H2_STORAGE.h2_charged[t] + H2_STORAGE.h2_discharged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t];
+            BALANCE.co2_balanced[t] == DAC.co2_captured[t] - METHANATION.co2_consumed[t];
+            BALANCE.co2_captured[t] == DAC.co2_captured[t] + REGAS_GREEN.co2_captured[t];
+            BALANCE.h2o_balanced[t] == DESALINATION.h2o_produced[t] - H2O_STORAGE.h2o_charged[t] + H2O_STORAGE.h2o_discharged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t] 
+                                     + FUEL_CELLS.h2o_produced[t] + DME_PLANTS.h2o_produced[t] + METHANOL_PLANTS.h2o_produced[t] + FT_PLANTS.h2o_produced[t]; 
+            BALANCE.dme_balanced[t] == DME_PLANTS.dme_produced[t] - DME_storage.dme_charged[t] + DME_storage.dme_discharged[t];
+            BALANCE.ethanol_balanced[t] == ETH_PLANTS.ethanol_produced[t] + BIOETH_PLANTS.ethanol_produced[t] + CELLETH_PLANTS.ethanol_produced[t] - ethanol_storage.ethanol_charged[t] + ethanol_storage.ethanol_discharged[t];
+            BALANCE.ft_balanced[t] == PETROL_STORAGE.petrol_discharged[t] + FT_PLANTS.petrol_produced[t] - PETROL_STORAGE.petrol_charged[t] - REFINERY.petrol_consumed[t];
+            BALANCE.diesel_balanced[t] == REFINED_PETROL_STORAGE.diesel_discharged[t] + REFINERY.diesel_produced[t] - REFINED_PETROL_STORAGE.diesel_charged[t]; 
+            BALANCE.gasoline_balanced[t] == REFINED_PETROL_STORAGE.gasoline_discharged[t] + REFINERY.gasoline_produced[t] - REFINED_PETROL_STORAGE.gasoline_charged[t];
+            BALANCE.kerosene_balanced[t] == REFINED_PETROL_STORAGE.kerosene_discharged[t] + REFINERY.kerosene_produced[t] - REFINED_PETROL_STORAGE.kerosene_charged[t];
+            BALANCE.methanol_balanced[t] == METHANOL_PLANTS.methanol_produced[t] - METHANOL_STORAGE.methanol_charged[t] + METHANOL_STORAGE.methanol_discharged[t];
+
+
+
+    #VARIABLES
+    external: e_balanced[T] <- BALANCE.e_balanced[T];               // GWh(e) - net production of electricity from this cluster
+    external: ng_balanced[T] <- BALANCE.ng_balanced[T];             // GWh(ng_lhv) - net production of methane from this cluster
+    external: h2_balanced[T] <- BALANCE.h2_balanced[T];             // GWh(h2_lhv) - net production of hydrogen from this cluster
+    external: co2_balanced[T] <- BALANCE.co2_balanced[T];           // kt(co2)
+    external: co2_air_captured[T] <- BALANCE.co2_captured[T];       // kt(co2)
+    external: h2o_balanced[T] <- BALANCE.h2o_balanced[T];           // kt(h2o) - net production of water from this cluster
+    external: dme_balanced[T]<- BALANCE.dme_balanced[T];
+    external: ethanol_balanced[T]<- BALANCE.ethanol_balanced[T];
+    external: ft_balanced[T]<- BALANCE.ft_balanced[T];
+    external: diesel_balanced[T]<- BALANCE.diesel_balanced[T];
+    external: gasoline_balanced[T]<- BALANCE.gasoline_balanced[T];
+    external: kerosene_balanced[T]<- BALANCE.kerosene_balanced[T];
+    external: methanol_balanced[T]<- BALANCE.methanol_balanced[T];
+    external: total_co2_captured;                                   // kt(co2)
+    
+    // external: ng_heat_gas_demand[T];
+    // external: ng_industry_gas_demand[T];
+    // external: ng_transport_gas_demand[T];
+    // external: ng_shipping_gas_demand[T];
+
+    // external: h2_heat_gas_demand[T];
+    // external: h2_industry_gas_demand[T];
+    // external: h2_transport_gas_demand[T];
+    // external: h2_shipping_gas_demand[T];
+
+    external: efuel_heat_gas_demand[T];
+    // external: industry_gas_demand[T];
+    external: efuel_transport_gas_demand[T];
+    external: efuel_shipping_gas_demand[T];
+
+    external: efuel_heat_h2_demand[T];
+    // external: industry_h2_demand[T];
+    external: efuel_transport_h2_demand[T];
+    external: efuel_shipping_h2_demand[T];
+    
+    // external: heat_demand[T];
+    // external: industry_demand[T];
+    // external: transport_demand[T];
+    // external: shipping_demand[T];
+
+
+
+    #CONSTRAINTS
+    total_co2_captured == sum(co2_air_captured[i] for i in [0:T-1]); 
+    h2o_balanced[t] == 0;
+
+    efuel_heat_gas_demand[t] == dme_balanced[t] + methanol_balanced[t]; 
+    // industry_gas_demand[T] == ;
+    efuel_transport_gas_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    efuel_shipping_gas_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+    efuel_heat_h2_demand[T] == dme_balanced[t] + methanol_balanced[t];
+    // industry_h2_demand[T];
+    efuel_transport_h2_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    efuel_shipping_h2_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+    // heat_demand[T] == dme_balanced[t] + methanol_balanced[t];
+    // industry_demand[T];
+    // transport_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    // shipping_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+   
+
+// Zeebrugge - Inland interconnections
+
+#NODE HV_ZB_INL = import HVAC from "../Templates/HVAC.txt" with
+    pre_installed_capacity = 3;                     // GW(e)
+    capex = 400/3;                                  // M€/GW(e)
+    nb_year = global.nb_year;
+
+#NODE PIPE_NG_ZB_INL = import PIPE from "../Templates/Pipe.txt" with 
+    pre_installed_capacity_forward = 60.5;                  // GW(ng_lhv)     
+    pre_installed_capacity_reverse = 30.25;                 // GW(ng_lhv) 
+    length = 47;                                            // km
+    e_consumption = 0.0;                                    // GWh(e)/GWh(ng_lhv) 
+    nb_year = global.nb_year;
+
+#NODE PIPE_H2_ZB_INL = import PIPE from "../Templates/Pipe.txt" with 
+    pre_installed_capacity_forward = 0;                     // GW(h2_lhv)
+    pre_installed_capacity_reverse = 0;                     // GW(h2_lhv)
+    max_capacity_forward = 100;                             // GW(h2_lhv)
+    length = 47;                                            // GW(h2_lhv)
+    efficiency_pipe = 1-(2.2/100000)*length;
+    // data from TYNDP of ENTSOE-G
+    capex = 0.4 * length;                                   // M€/GW(h2_lhv)
+    fom = 0.03 * capex;                                     // M€/GW(h2_lhv)/yr
+    nb_year = global.nb_year;
+
+//#NODE PIPE_DME_ZB_INL = import PIPE from "../Templates/Pipe.txt" with 
+//    pre_installed_capacity_forward = 0;                     // GW(dme_lhv)
+//    pre_installed_capacity_reverse = 0;                     // GW(dme_lhv)
+//    max_capacity_forward = 100;                             // GW(dme_lhv)
+//    length = 47;                                            // GW(dme_lhv)
+//    efficiency_pipe = 1-(2.2/100000)*length;
+//    // data from TYNDP of ENTSOE-G
+//    capex = 0.4 * length;                                   // M€/GW(dme_lhv)
+//    fom = 0.03 * capex;                                     // M€/GW(dme_lhv)/yr
+//    nb_year = global.nb_year; 
+
+
+// Zeebrugge balance
+
+#HYPEREDGE ZEEBRUGGE_BALANCE
+    #CONSTRAINTS
+    electricity : HV_OFF_ZB.e_forward_out[t] - HV_OFF_ZB.e_reverse_in[t] + DENMARK.e_imported[t] - DENMARK.e_exported[t] + UNITED_KINGDOM.e_imported[t] - UNITED_KINGDOM.e_exported[t] 
+    + ZEEBRUGGE.e_balanced[t] == HV_ZB_INL.e_forward_in[t] - HV_ZB_INL.e_reverse_out[t] + PIPE_H2_ZB_INL.e_consumed[t];
+    methane : ZEEBRUGGE.ng_balanced[t] == PIPE_NG_ZB_INL.flow_forward_in[t] - PIPE_NG_ZB_INL.flow_reverse_out[t];
+    hydrogen : PIPE_H2_OFF_ZB.flow_forward_out[t] - PIPE_H2_OFF_ZB.flow_reverse_in[t] + ZEEBRUGGE.h2_balanced[t] == PIPE_H2_ZB_INL.flow_forward_in[t] - PIPE_H2_ZB_INL.flow_reverse_out[t];
+    ZEEBRUGGE.co2_balanced[t]  == 0;
+
+
+
+
+// Countries with electric connection to Inland
+
+#NODE NETHERLANDS
+
+    #PARAMETERS
+        // data from Elia Roadmap to net zero in 2040 
+        energy_electricity = 0;
+        import_capacity = 5.4;                              // GW(e)
+        export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 5.4 GW
+        import_cost = 0.0619;                               // M€/GWh(e)
+        export_cost = 0.0463;                               // M€/GWh(e)
+        max_import = 3942.02;                               // GWh(e)
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_NL.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 94.856;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff_NL.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 60.137;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_NL.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 9.676;                 // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
+
+    #OBJECTIVES
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
+
+#NODE DEUTSCHLAND
+
+    #PARAMETERS
+
+        energy_electricity = 0;
+        import_capacity = 1;                                // GW(e)
+        export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 1.5 GW
+        import_cost = 0.0624;                               // M€/GWh(e)
+        export_cost = 0.046;                                // M€/GWh(e)
+        max_import = 5682.43;                               // GWh(e)
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_DE.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 268.215;               // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff_DE.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 52.199;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_DE.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 68.376;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
+
+    #OBJECTIVES
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
+
+
+#NODE LUXEMBOURG
+
+    #PARAMETERS
+
+        energy_electricity = 0;
+        import_capacity = 1;                                // GW(e)
+        export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 0.84 GW
+        import_cost = 0.0739;                               // M€/GWh(e)
+        export_cost = 0.0399;                               // M€/GWh(e)
+        max_import = 16.743;                                // GWh(e)
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_LU.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 0.726;                 // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 0;                     // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_LU.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 0.534;                 // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]);
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                  // GWh(e)
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+    sum(e_imported[i] for i in [0:T-1]) <= max_import;
+
+    #OBJECTIVES
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
+
+#NODE FRANCE
+
+    #PARAMETERS
+
+        energy_electricity = 0;
+        import_capacity = 8.3;                              // GW(e)
+        export_capacity = 0;                                // GW(e) - assumed no export in this model but real capacity is 5.3 GW
+        import_cost = 0.0571;                               // M€/GWh(e)
+        export_cost = 0.0415;                               // M€/GWh(e)
+        max_import = 4507.13;                               // GWh(e)
+
+            #NODE PV = import PV from "../Templates/PV.txt" with 
+            production_profile = import "../Data/load_factor_pv_FR.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 158.048;               // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_OFFSHORE = import WIND_OFFSHORE from "../Templates/Wind_offshore.txt" with 
+            production_profile = import "../Data/load_factor_woff_FR.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 43.446;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year; 
+
+            #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+            production_profile = import "../Data/load_factor_won_FR.csv";
+            // values from TYNDP Entsoe/g for the "Distributed Energy Scenario" in 2050
+            pre_installed_capacity = 40.802;                // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            nb_year = global.nb_year;
+
+            #NODE NUCLEAR = import NUCLEAR from "../Templates/Nuclear.txt" with
+            pre_installed_capacity = 15.2;                  // GW(e)
+            max_capacity = pre_installed_capacity;          // GW(e)
+            vom = 0;                                        // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+            fuel_cost = 0;                                  // M€/GWh(e) - assume at 0 as its impact is already considered in the import cost 
+
+            #NODE PRODUCTION
+            #VARIABLES
+            external: e_imported[T];                          // GWh(e)
+            #CONSTRAINTS
+            e_imported[t] >= 0; 
+
+            #HYPEREDGE IMPORT
+            #PARAMETERS
+            share_import = 0.01;
+            #CONSTRAINTS
+            sum(PRODUCTION.e_imported[i] for i in [0:T-1]) <= share_import * sum(PV.e_produced[i] + WIND_OFFSHORE.e_produced[i] + WIND_ONSHORE.e_produced[i] + NUCLEAR.e_produced[i] for i in [0:T-1]);
+            PRODUCTION.e_imported[t] <= share_import * (PV.e_produced[t] + WIND_OFFSHORE.e_produced[t] + WIND_ONSHORE.e_produced[t]) + 0.3 * NUCLEAR.e_produced[t];
+        
+
+    #VARIABLES
+    external: e_imported[T] <- PRODUCTION.e_imported[T];        // GWh(e)
+    external: e_exported[T];                                    // GWh(e)
+
+    #CONSTRAINTS
+    e_exported[t] >= 0;
+    e_imported[t] <= import_capacity;
+    e_exported[t] <= export_capacity;
+
+    #OBJECTIVES
+    min import_cost: e_imported[t] * import_cost; 
+    max export_cost: e_exported[t] * export_cost;
+
+// Inland Cluster
+
+#NODE INLAND 
+
+    #PARAMETERS
+
+    value_of_lost_load_e = 3000 * 1/(10**3);                            // M€/GWh(e)
+    value_of_lost_load_ng = 500 * 1/(10**3);                            // M€/GWh(e)
+    value_of_lost_load_h2 = 500 * 1/(10**3);                            // M€/GWh(e)
+
+    
+        // Efuels
+
+        #NODE DME_PLANTS = import DME_PLANTS from "../Templates/DME.txt" with 
+        nb_year = global.nb_year; 
+
+        #NODE DME_storage = import DME_STORAGE_HUB from "../Templates/DME.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE ETH_PLANTS = import ETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE BIOETH_PLANTS = import BIOETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE CELLETH_PLANTS = import CELLETH_PLANTS from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE ethanol_storage = import ETHANOL_STORAGE_HUB from "../Templates/ETHANOL.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE FT_PLANTS = import FT_PLANTS from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE REFINERY = import REFINERY from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE REFINED_PETROL_STORAGE = import REFINED_PETROL_STORAGE from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE PETROL_STORAGE = import PETROL_STORAGE from "../Templates/FT_Product.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE METHANOL_PLANTS = import METHANOL_PLANTS from "../Templates/Methanol.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE METHANOL_STORAGE = import METHANOL_LIQ_STORAGE from "../Templates/Methanol.txt" with 
+        nb_year = global.nb_year;
+
+        
+        // Electricity
+
+        #NODE PV = import PV from "../Templates/PV.txt" with
+        pre_installed_capacity = 0;                             // GW(e)        
+        production_profile = import "../Data/load_factor_pv.csv";
+        nb_year = global.nb_year; 
+
+        #NODE WIND_ONSHORE = import WIND_ONSHORE from "../Templates/Wind_onshore.txt" with 
+        pre_installed_capacity = 0;                             // GW(e)
+        production_profile = import "../Data/load_factor_won.csv";
+        nb_year = global.nb_year;
+
+        #NODE NUCLEAR = import NUCLEAR from "../Templates/Nuclear.txt" with 
+        pre_installed_capacity = 0;                             // GW(e)
+        nb_year = global.nb_year;                       
+
+        #NODE BIOMASS = import BIOMASS from "../Templates/Biomass.txt" with
+        pre_installed_capacity = 0;                             // GW(e)
+        max_capacity = 0;                                       // GW(e)
+        nb_year = global.nb_year;
+
+        #NODE WASTE = import WASTE from "../Templates/Waste.txt" with
+        pre_installed_capacity = 0;                             // GW(e)
+        max_capacity = 0;                                       // GW(e)
+        nb_year = global.nb_year;
+
+        #NODE CHP = import CHP from "../Templates/CHP.txt" with
+        pre_installed_capacity = 0;                             // GW(e)
+        max_capacity = pre_installed_capacity;                  // GW(e)
+        spec_CO2_emission = global.spec_co2_emission;
+        nb_year = global.nb_year;
+
+        #NODE CCGT = import CCGT from "../Templates/CCGT.txt" with
+        pre_installed_capacity = 0;                             // GW(e)
+        spec_CO2_emission = global.spec_co2_emission;           // GW(e)
+        nb_year = global.nb_year;
+
+        #NODE OCGT = import OCGT from "../Templates/OCGT.txt" with
+        pre_installed_capacity = 0;                             // GW(e)
+        spec_CO2_emission = global.spec_co2_emission;           // GW(e)
+        nb_year = global.nb_year;
+
+        #NODE ELECTROLYSIS_PLANTS = import ELECTROLYSIS_PLANTS from "../Templates/Electrolysis.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE PUMPED_HYDRO = import PUMPED_HYDRO from "../Templates/Pumped_hydro.txt" with
+        nb_year = global.nb_year;
+
+        #NODE BATTERIES = import BATTERIES from "../Templates/Battery.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE FUEL_CELLS = import FUEL_CELLS from "../Templates/Fuel_cells.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE LOAD_SHIFTING = import LOAD_SHIFTING from "../Templates/Load_shifting.txt" with 
+        max_load_shifting = 1.5; 
+
+        #NODE LOAD_SHEDDING_1 = import LOAD_SHEDDING from "../Templates/Load_shedding.txt" with
+        nb_year = global.nb_year;
+
+        #NODE LOAD_SHEDDING_2 = import LOAD_SHEDDING from "../Templates/Load_shedding.txt" with
+        pre_installed_capacity = 0.446;                         // GW(e) in 2022
+        max_capacity = 0.7;                                     // GWe
+        nb_hours = 2;
+        vom = 2; 
+        nb_year = global.nb_year;
+
+        #NODE LOAD_SHEDDING_4 = import LOAD_SHEDDING from "../Templates/Load_shedding.txt" with
+        pre_installed_capacity = 0.534;                         // GW(e) in 2022
+        max_capacity = 0.607;                                   // GWe
+        nb_hours = 4;
+        vom = 1.5; 
+        nb_year = global.nb_year;
+
+        #NODE LOAD_SHEDDING_8 = import LOAD_SHEDDING from "../Templates/Load_shedding.txt" with
+        pre_installed_capacity = 0.383;                         // GW(e) in 2022
+        max_capacity = 0.6;                                     // GWe
+        nb_hours = 8;
+        vom = 1; 
+        nb_year = global.nb_year;
+
+        #NODE LOAD_SHEDDING_UNLIM = import LOAD_SHEDDING from "../Templates/Load_shedding.txt" with
+        pre_installed_capacity = 0.191;                         // GW(e) in 2022
+        max_capacity = 0.3;                                     // GWe
+        nb_hours = 24;
+        vom = 0.5; 
+        nb_year = global.nb_year;
+
+
+        // Natural gas
+
+        #NODE NG_INTERCONNECTION_NL = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = (1 - global.H2_NL) * 35.5375 * global.import_ng_lhv;
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model but real value is 17.8167 GW(ng_hhv)
+        import_costs_ts = import "../Data/cost_import_ng_nl.csv";                           // M€/GWh(ng_lhv)
+        import_costs = global.ng_import_cost_mean * import_costs_ts;
+        export_cost = 0.3297 * 1/(10**3);
+        nb_year = global.nb_year;
+
+        #NODE NG_INTERCONNECTION_FR = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = 0;
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model but real value is 26.6 GW(ng_hhv)
+        export_cost = 0.4493 * 1/(10**3);
+        import_costs = global.ng_import_cost_mean * import_costs_ts;
+        nb_year = global.nb_year;
+
+        #NODE NG_INTERCONNECTION_DE = import NG_INTERCONNECTION from "../Templates/NG_interconnection.txt" with
+        import_capacity = (1 - global.H2_DE) * 16.6875 * global.import_ng_lhv;
+        export_capacity = 0;                                                        // GW(ng_lhv) - assumed no export in this model but real value is 15.2583 GW(ng_hhv)
+        import_costs_ts = import "../Data/cost_import_ng_de.csv";                           // M€/GWh(ng_lhv)
+        import_costs = global.ng_import_cost_mean * import_costs_ts;
+        export_cost = 0.6177 * 1/(10**3);
+        nb_year = global.nb_year;
+
+        #NODE BIOMETHANE = import BIOMETHANE from "../Templates/Biomethane.txt" with
+        CO2_consumed_by_CH4 = global.spec_co2_emission;
+        co2_emission_cost = global.co2_emission_cost;
+        nb_year = global.nb_year;
+
+        #NODE METHANATION = import METHANATION_PLANTS from "../Templates/Methanation.txt" with
+        nb_year = global.nb_year;
+
+        #NODE NG_STORAGE = import NG_STORAGE from "../Templates/NG_storage.txt" with
+        nb_year = global.nb_year;
+
+        #NODE LINEPACK_NG = import LINEPACK from "../Templates/Linepack.txt" with
+        lhv_m3 = global.lhv_ng_m3;
+        pre_installed_capacity = 3.5 * lhv_m3;
+        
+        // Hydrogen
+
+        #NODE H2_INTERCONNECTION = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_new_inl;
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION_DE = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_DE * 0.8 * 16.6875 * global.import_ng_lhv;
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        max_import = global.max_total_h2_import;
+        nb_year = global.nb_year;
+
+        #NODE H2_INTERCONNECTION_NL = import H2_INTERCONNECTION from "../Templates/H2_interconnection.txt" with
+        import_capacity = global.H2_NL * 0.8 * 35.5375 * global.import_ng_lhv;
+        export_capacity = 0;                                                        // GW(h2_lhv) - assumed no export in this model
+        max_import = global.max_total_h2_import;
+        nb_year = global.nb_year;
+
+        #NODE SMR = import SMR from "../Templates/SMR.txt" with
+        pre_installed_capacity = 0; 
+        spec_CO2_emission = global.spec_co2_emission;
+        nb_year = global.nb_year;
+
+        #NODE H2_STORAGE = import H2_STORAGE from "../Templates/H2_storage.txt" with                                       
+        nb_year = global.nb_year;
+
+        // Carbon dioxide
+
+        #NODE DAC = import DAC from "../Templates/DAC.txt" with 
+        nb_year = global.nb_year;
+
+        #NODE PCCC_DME = import PCCC from "../Templates/PCCC.txt" with
+        nb_year = global.nb_year;
+        co2_emission_cost = global.co2_emission_cost;
+        capex_existing = 2160;
+        capex = 2160;
+
+        #HYPEREDGE CO2_CAPTURE_DME = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_DME;
+        POWER_PLANT <- DME_PLANTS;
+
+        #NODE PCCC_BM = import PCCC from "../Templates/PCCC.txt" with
+        nb_year = global.nb_year;
+        co2_emission_cost = global.co2_emission_cost;
+        capex_existing = 2160;
+        capex = 2160;
+
+        #HYPEREDGE CO2_CAPTURE_BM = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_BM;
+        POWER_PLANT <- BIOMASS;
+
+        #NODE PCCC_WS = import PCCC from "../Templates/PCCC.txt" with
+        nb_year = global.nb_year;
+        co2_emission_cost = global.co2_emission_cost;
+        capex_existing = 2160;
+        capex = 2160;
+
+        #HYPEREDGE CO2_CAPTURE_WS = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_WS;
+        POWER_PLANT <- WASTE;
+
+        #NODE PCCC_CHP = import PCCC from "../Templates/PCCC.txt" with
+        co2_emission_cost = global.co2_emission_cost;
+        nb_year = global.nb_year;
+        capex_existing = 3150;
+        capex = 3150;
+
+        #HYPEREDGE CO2_CAPTURE_CHP = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_CHP;
+        POWER_PLANT <- CHP;
+
+        #NODE PCCC_CCGT = import PCCC from "../Templates/PCCC.txt" with
+        co2_emission_cost = global.co2_emission_cost;
+        nb_year = global.nb_year;
+        capex_existing = 3150;
+        capex = 3150;
+
+        #HYPEREDGE CO2_CAPTURE_CCGT = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_CCGT;
+        POWER_PLANT <- CCGT;
+
+        #NODE PCCC_OCGT = import PCCC from "../Templates/PCCC.txt" with
+        co2_emission_cost = global.co2_emission_cost;
+        nb_year = global.nb_year;
+        capex_existing = 3150;
+        capex = 3150;
+
+        #HYPEREDGE CO2_CAPTURE_OCGT = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_OCGT;
+        POWER_PLANT <- OCGT;
+
+        #NODE PCCC_SMR = import PCCC from "../Templates/PCCC.txt" with
+        co2_emission_cost = global.co2_emission_cost;
+        nb_year = global.nb_year;
+        capex_existing = 3150;
+        capex = 3150;
+
+        #HYPEREDGE CO2_CAPTURE_SMR = import CO2_CAPTURE from "../Templates/PCCC.txt" with
+        PCCC <- PCCC_SMR;
+        POWER_PLANT <- SMR;
+
+        #NODE CO2_STORAGE = import CO2_STORAGE from "../Templates/CO2_STORAGE.txt" with
+        nb_year = global.nb_year;
+
+        #NODE CO2_EXPORT = import CO2_EXPORT from "../Templates/CO2_export.txt";
+
+
+        // Water 
+
+        #NODE H2O_STORAGE = import H2O_STORAGE from "../Templates/H2O_storage.txt" with
+        nb_year = global.nb_year;
+
+                       // GWh(h2_lhv) - net production of hydrogen from this cluster
+
+
+
+
+        // Balance
+
+        #NODE BALANCE
+            #VARIABLES
+            external: inst_power[T];                // GWh(e)
+            external: e_balanced[T];                // GWh(e) - net production of electricity from this cluster
+            external: ng_balanced[T];               // GWh(ng_lhv) - net production of natural gas from this cluster
+            external: h2_balanced[T];               // GWh(h2_lhv) - net production of hydrogen from this cluster
+            external: co2_balanced[T];              // kt(co2)
+            external: co2_released[T];              // kt(co2)
+            external: co2_air_captured[T];          // kt(co2)
+            external: h2o_balanced[T];              // kt(h2o) - net production of water from this cluster
+            external: dme_balanced[T];              // GWh()
+            external: ethanol_balanced[T];              // GWh()
+            external: ft_balanced[T];               // GWh()
+            external: diesel_balanced[T];           // GWh()
+            external: gasoline_balanced[T];         // GWh()
+            external: kerosene_balanced[T];         // GWh()
+            external: methanol_balanced[T];         // GWh()
+
+
+
+        #HYPEREDGE BALANCES 
+            #CONSTRAINTS
+            BALANCE.e_balanced[t] == PV.e_produced[t] +  WIND_ONSHORE.e_produced[t] + NUCLEAR.e_produced[t] + BIOMASS.e_produced[t] 
+                                    + WASTE.e_produced[t] + CHP.e_produced[t] + CCGT.e_produced[t] + OCGT.e_produced[t] 
+                                    - ELECTROLYSIS_PLANTS.e_consumed[t] + FUEL_CELLS.e_produced[t] - BIOMETHANE.e_consumed[t]
+                                    - SMR.e_consumed[t] + PUMPED_HYDRO.e_discharged[t] - PUMPED_HYDRO.e_charged[t] + BATTERIES.e_discharged[t] 
+                                    - BATTERIES.e_charged[t] - PCCC_SMR.e_consumed[t] - PCCC_BM.e_consumed[t] - PCCC_WS.e_consumed[t] 
+                                    - PCCC_CCGT.e_consumed[t] - PCCC_OCGT.e_consumed[t] - PCCC_CHP.e_consumed[t] - DAC.e_consumed[t]
+                                    - LOAD_SHIFTING.load_increase[t] + LOAD_SHIFTING.load_reduction[t] + LOAD_SHEDDING_1.load_reduction[t] 
+                                    + LOAD_SHEDDING_2.load_reduction[t] + LOAD_SHEDDING_4.load_reduction[t] + LOAD_SHEDDING_8.load_reduction[t]
+                                     + LOAD_SHEDDING_UNLIM.load_reduction[t] - H2_STORAGE.e_consumed[t] - DME_PLANTS.e_consumed[t] 
+                                     - ETH_PLANTS.e_consumed[t] - BIOETH_PLANTS.e_consumed[t] - CELLETH_PLANTS.e_consumed[t];    
+            BALANCE.inst_power[t] == PV.e_produced[t] +  WIND_ONSHORE.e_produced[t] + NUCLEAR.e_produced[t] + BIOMASS.e_produced[t] + WASTE.e_produced[t] 
+                                    + CHP.e_produced[t] + CCGT.e_produced[t] + OCGT.e_produced[t] + FUEL_CELLS.e_produced[t] + PUMPED_HYDRO.e_discharged[t] + BATTERIES.e_discharged[t]
+                                    - PCCC_BM.e_consumed[t] - PCCC_WS.e_consumed[t]  - PCCC_CCGT.e_consumed[t] - PCCC_OCGT.e_consumed[t] - PCCC_CHP.e_consumed[t]; 
+            BALANCE.ng_balanced[t] == NG_INTERCONNECTION_NL.ng_imported[t] - NG_INTERCONNECTION_NL.ng_exported[t] + NG_INTERCONNECTION_FR.ng_imported[t] - NG_INTERCONNECTION_FR.ng_exported[t] 
+                                    + NG_INTERCONNECTION_DE.ng_imported[t] - NG_INTERCONNECTION_DE.ng_exported[t] + BIOMETHANE.ng_produced[t] + METHANATION.ng_produced[t] 
+                                    + NG_STORAGE.ng_discharged[t] - NG_STORAGE.ng_charged[t] - CHP.ng_consumed[t] - CCGT.ng_consumed[t] - OCGT.ng_consumed[t] 
+                                    + LINEPACK_NG.ng_discharged[t] - LINEPACK_NG.ng_charged[t] - SMR.ng_consumed[t] 
+                                    - ETH_PLANTS.ng_consumed[t] - BIOETH_PLANTS.ng_consumed[t];
+            BALANCE.h2_balanced[t] == H2_INTERCONNECTION_DE.h2_imported[t] - H2_INTERCONNECTION_DE.h2_exported[t] + H2_INTERCONNECTION_NL.h2_imported[t] - H2_INTERCONNECTION_NL.h2_exported[t] + H2_INTERCONNECTION.h2_imported[t] - H2_INTERCONNECTION.h2_exported[t] 
+                                    +  ELECTROLYSIS_PLANTS.h2_produced[t] + SMR.h2_produced[t]
+                                    + H2_STORAGE.h2_discharged[t] - H2_STORAGE.h2_charged[t] - FUEL_CELLS.h2_consumed[t] - METHANATION.h2_consumed[t] 
+                                    - DME_PLANTS.h2_consumed[t] - ETH_PLANTS.h2_consumed[t]; 
+            BALANCE.co2_balanced[t] == PCCC_SMR.co2_captured[t] + PCCC_BM.co2_captured[t] + PCCC_WS.co2_captured[t] + PCCC_CCGT.co2_captured[t]
+                                    + PCCC_OCGT.co2_captured[t] + PCCC_CHP.co2_captured[t] + DAC.co2_captured[t] + CO2_STORAGE.co2_discharged[t] - CO2_STORAGE.co2_charged[t]
+                                    - METHANATION.co2_consumed[t] - CO2_EXPORT.co2_exported[t] - DME_PLANTS.co2_consumed[t] - ETH_PLANTS.co2_consumed[t];
+            BALANCE.co2_released[t] == PCCC_SMR.co2_released[t] + PCCC_BM.co2_released[t] + PCCC_WS.co2_released[t] + PCCC_CCGT.co2_released[t] 
+                                    + PCCC_OCGT.co2_released[t] + PCCC_CHP.co2_released[t] + PCCC_DME.co2_released[t];
+            BALANCE.co2_air_captured[t] == DAC.co2_captured[t] + BIOMETHANE.co2_captured[t];
+            BALANCE.h2o_balanced[t] == FUEL_CELLS.h2o_produced[t] - H2O_STORAGE.h2o_charged[t] + H2O_STORAGE.h2o_discharged[t] - ELECTROLYSIS_PLANTS.h2o_consumed[t]
+                                     + DME_PLANTS.h2o_produced[t] + METHANOL_PLANTS.h2o_produced[t] + FT_PLANTS.h2o_produced[t]; 
+            BALANCE.dme_balanced[t] == DME_storage.dme_discharged[t] + DME_PLANTS.dme_produced[t] - DME_storage.dme_charged[t];
+            BALANCE.ethanol_balanced[t] == ethanol_storage.ethanol_discharged[t] + ETH_PLANTS.ethanol_produced[t] + BIOETH_PLANTS.ethanol_produced[t] + CELLETH_PLANTS.ethanol_produced[t] - ethanol_storage.ethanol_charged[t];
+            BALANCE.ft_balanced[t] == PETROL_STORAGE.petrol_discharged[t] + FT_PLANTS.petrol_produced[t] - PETROL_STORAGE.petrol_charged[t] - REFINERY.petrol_consumed[t];
+            BALANCE.diesel_balanced[t] == REFINED_PETROL_STORAGE.diesel_discharged[t] + REFINERY.diesel_produced[t] - REFINED_PETROL_STORAGE.diesel_charged[t]; 
+            BALANCE.gasoline_balanced[t] == REFINED_PETROL_STORAGE.gasoline_discharged[t] + REFINERY.gasoline_produced[t] - REFINED_PETROL_STORAGE.gasoline_charged[t];
+            BALANCE.kerosene_balanced[t] == REFINED_PETROL_STORAGE.kerosene_discharged[t] + REFINERY.kerosene_produced[t] - REFINED_PETROL_STORAGE.kerosene_charged[t];
+
+      
+
+
+    #VARIABLES
+    
+    internal: co2_air_captured[T] <- BALANCE.co2_air_captured[T];
+    external: co2_emitted[T];                                           // kt(co2)
+    external: co2_released[T] <- BALANCE.co2_released[T];               // kt(co2) 
+    external: total_co2_emitted;                                        // kt(co2) 
+
+    external: inst_power[T] <- BALANCE.inst_power[T];                   // GWh(e)
+
+    external: e_ens[T];                                                 // GWh(e)
+    external: ng_ens[T];                                                // GWh(ng_lhv)
+    external: h2_ens[T];                                                // GWh(h2_lhv)
+
+
+    external: e_balanced[T] <- BALANCE.e_balanced[T];                   // GWh(e) - net production of electricity from this cluster
+    external: ng_balanced[T] <- BALANCE.ng_balanced[T];                 // GWh(ng_lhv) - net production of natural gas from this cluster
+    external: dme_balanced[T] <- BALANCE.dme_balanced[T];               // GWh(dme_lhv) - net production of dme from this cluster
+    external: ethanol_balanced[T] <- BALANCE.ethanol_balanced[T];       // GWh(ethanol_lhv) - net production of ethanol from this cluster
+    external: ft_balanced[T] <- BALANCE.ft_balanced[T];                 // GWh(ft_lhv) - net production of FT fuels from this cluster
+    external: diesel_balanced[T] <- BALANCE.diesel_balanced[T];         // GWh(diesel_lhv) - net production of diesel from this cluster
+    external: gasoline_balanced[T] <- BALANCE.gasoline_balanced[T];     // GWh(gasoline_lhv) - net production of gasoline from this cluster
+    external: kerosene_balanced[T] <- BALANCE.kerosene_balanced[T];     // GWh(kerosene_lhv) - net production of kerosene from this cluster
+    external: methanol_balanced[T] <- BALANCE.methanol_balanced[T];     // GWh(methanol_lhv)
+    external: h2_balanced[T] <- BALANCE.h2_balanced[T];                 // GWh(h2_lhv) - net production of hydrogen from this cluster
+    external: co2_balanced[T] <- BALANCE.co2_balanced[T];               // kt(co2) 
+    external: h2o_balanced[T] <- BALANCE.h2o_balanced[T]; 
+    
+
+     
+    // external: ng_heat_gas_demand[T];
+    // external: ng_industry_gas_demand[T];
+    // external: ng_transport_gas_demand[T];
+    // external: ng_shipping_gas_demand[T];
+
+    // external: h2_heat_gas_demand[T];
+    // external: h2_industry_gas_demand[T];
+    // external: h2_transport_gas_demand[T];
+    // external: h2_shipping_gas_demand[T];
+
+    external: efuel_heat_gas_demand[T];
+    // external: industry_gas_demand[T];
+    external: efuel_transport_gas_demand[T];
+    external: efuel_shipping_gas_demand[T];
+
+    external: efuel_heat_h2_demand[T];
+    // external: industry_h2_demand[T];
+    external: efuel_transport_h2_demand[T];
+    external: efuel_shipping_h2_demand[T];
+    
+    // external: heat_demand[T];
+    // external: industry_demand[T];
+    // external: transport_demand[T];
+    // external: shipping_demand[T];
+
+   
+    #CONSTRAINTS
+    e_ens[t] >= 0;
+    ng_ens[t] >= 0;
+    h2_ens[t] >= 0;
+    co2_balanced[t] == 0;
+    h2o_balanced[t] == 0; 
+    co2_emitted: co2_emitted[t] == co2_released[t] - co2_air_captured[t] + global.spec_co2_emission * (global.demand_ng_heat[t] + global.demand_ng_industry[t] + global.demand_ng_transport[t] + global.demand_ng_transport2[t] - ng_ens[t]);   
+    total_co2_emitted == sum(co2_emitted[i] for i in [0:T-1]); 
+
+    efuel_heat_gas_demand[t] == dme_balanced[t] + methanol_balanced[t]; 
+    // industry_gas_demand[T] == ;
+    efuel_transport_gas_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    efuel_shipping_gas_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+    efuel_heat_h2_demand[T] == dme_balanced[t] + methanol_balanced[t];
+    // industry_h2_demand[T];
+    efuel_transport_h2_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    efuel_shipping_h2_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+    // heat_demand[T] == dme_balanced[t] + methanol_balanced[t];
+    // industry_demand[T];
+    // transport_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+    // shipping_demand[T] == dme_balanced[t] + methanol_balanced[t] + ethanol_balanced[t] + diesel_balanced[t];
+
+
+    #OBJECTIVES
+    min cost_e_ens: value_of_lost_load_e * e_ens[t];                    // M€
+    min cost_ng_ens: value_of_lost_load_ng * ng_ens[t];                 // M€
+    min cost_h2_ens: value_of_lost_load_h2 * h2_ens[t];                 // M€
+ 
+
+
+
+#HYPEREDGE INLAND_BALANCE
+    #CONSTRAINTS 
+
+    
+    // Electricity
+
+    electricity: HV_ZB_INL.e_forward_out[t] - HV_ZB_INL.e_reverse_in[t] + INLAND.e_balanced[t] + INLAND.e_ens[t] + NETHERLANDS.e_imported[t] - NETHERLANDS.e_exported[t]
+                              + DEUTSCHLAND.e_imported[t] - DEUTSCHLAND.e_exported[t] + LUXEMBOURG.e_imported[t] - LUXEMBOURG.e_exported[t]
+                              + FRANCE.e_imported[t] - FRANCE.e_exported[t] == global.demand_el[t] + global.demand_el_ht[t] + global.demand_el_tr[t]; 
+        
+    max_grid: HV_ZB_INL.e_forward_out[t] + INLAND.inst_power[t] + NETHERLANDS.e_imported[t] + DEUTSCHLAND.e_imported[t] + LUXEMBOURG.e_imported[t] + FRANCE.e_imported[t] <= global.grid_limit;
+
+
+    // Gas 
+
+    heating_gas: PIPE_NG_ZB_INL.flow_forward_out[t] - PIPE_NG_ZB_INL.flow_reverse_in[t] + INLAND.ng_balanced[t] + INLAND.ng_ens[t] 
+                 + INLAND.efuel_heat_gas_demand[t] + ZEEBRUGGE.efuel_heat_gas_demand[t] == global.demand_ng_heat[t] ;
+
+    industry_gas: PIPE_NG_ZB_INL.flow_forward_out[t] - PIPE_NG_ZB_INL.flow_reverse_in[t] + INLAND.ng_balanced[t] + INLAND.ng_ens[t] == global.demand_ng_industry[t];
+                  // + INLAND.dme_balanced[t] + ZEEBRUGGE.dme_balanced[t] + INLAND.methanol_balanced[t] + ZEEBRUGGE.methanol_balanced[t] == global.demand_ng_industry[t];
+                 
+    transport_gas: PIPE_NG_ZB_INL.flow_forward_out[t] - PIPE_NG_ZB_INL.flow_reverse_in[t] + INLAND.ng_balanced[t] + INLAND.ng_ens[t] 
+                   + INLAND.efuel_transport_gas_demand[t] + ZEEBRUGGE.efuel_transport_gas_demand[t] == global.demand_ng_transport[t];
+
+    shipping_gas: PIPE_NG_ZB_INL.flow_forward_out[t] - PIPE_NG_ZB_INL.flow_reverse_in[t] + INLAND.ng_balanced[t] + INLAND.ng_ens[t] 
+                  + INLAND.efuel_shipping_gas_demand[t] + ZEEBRUGGE.efuel_shipping_gas_demand[t] == global.demand_ng_transport2[t];
+
+
+    // Hydrogen
+
+    heating_h2: PIPE_H2_ZB_INL.flow_forward_out[t] - PIPE_H2_ZB_INL.flow_reverse_in[t] + INLAND.h2_balanced[t] + INLAND.h2_ens[t] 
+                + INLAND.efuel_heat_h2_demand[t] + ZEEBRUGGE.efuel_heat_h2_demand[t] == global.demand_h2_heat[t];
+
+    industry_h2: PIPE_H2_ZB_INL.flow_forward_out[t] - PIPE_H2_ZB_INL.flow_reverse_in[t] + INLAND.h2_balanced[t] + INLAND.h2_ens[t] == global.demand_h2_industry[t];
+                  
+    transport_h2: PIPE_H2_ZB_INL.flow_forward_out[t] - PIPE_H2_ZB_INL.flow_reverse_in[t] + INLAND.h2_balanced[t] + INLAND.h2_ens[t] 
+                  + INLAND.efuel_transport_h2_demand[t] + ZEEBRUGGE.efuel_transport_h2_demand[t] == global.demand_h2_transport[t];
+
+    shipping_h2: PIPE_H2_ZB_INL.flow_forward_out[t] - PIPE_H2_ZB_INL.flow_reverse_in[t] + INLAND.h2_balanced[t] + INLAND.h2_ens[t] 
+                 + INLAND.efuel_shipping_h2_demand[t] + ZEEBRUGGE.efuel_shipping_h2_demand[t]== global.demand_h2_transport2[t];
+
+
+
+#HYPEREDGE CO2_QUOTA
+    #CONSTRAINTS
+    co2_neutral : INLAND.total_co2_emitted - ZEEBRUGGE.total_co2_captured <= global.co2_quota_emission;
+
