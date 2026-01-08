@@ -1,0 +1,245 @@
+#TIMEHORIZON
+T = 8760;
+
+
+#NODE ETHANOL_PLANTS
+// In GW
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 100;
+capex_existing = 29663.9/7.472;
+fom_existing = 0/7.472;
+vom_existing = 0/7.472;
+capex = 29663.9/7.472;
+fom = 0/7.472;
+vom = 0/7.472;
+lifetime_existing = 30;
+lifetime = 30;
+conversion_factor_hydrogen =  0.409;
+conversion_factor_co2 = 2.147;
+conversion_factor_elec = 0.2; // GWh_el / kt_eth
+conversion_factor_water = 0.575; // kt_ng / kt_eth 
+hhv_eth = 8.267; 
+lhv_eth = 7.472;
+lhv_h2 = 33.322; 
+minimum_level = 1;
+ramp_rate_up = 0.0;
+ramp_rate_down = 0.0;
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: ethanol_produced[T]; 
+external: h2_consumed[T];
+external: h2o_produced[T];
+external: co2_consumed[T];
+external: e_consumed[T]; 
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+ethanol_produced[t] >= 0; 
+h2_consumed[t] >= 0;
+h2o_produced[t] >= 0;
+co2_consumed[t] >= 0;
+e_consumed[t] >= 0; 
+minimum_level * (pre_installed_capacity + new_capacity) <= ethanol_produced[t];
+ethanol_produced[t] <= pre_installed_capacity + new_capacity;
+ethanol_produced[i] - ethanol_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+ethanol_produced[i] - ethanol_produced[i-1] >= -ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+h2_consumed[t]/lhv_h2 == conversion_factor_hydrogen * ethanol_produced[t]/lhv_eth;
+co2_consumed[t] == conversion_factor_co2 * ethanol_produced[t]/lhv_eth;
+e_consumed[t] == conversion_factor_elec * ethanol_produced[t]/lhv_eth;
+h2o_produced[t] == conversion_factor_water * ethanol_produced[t]/lhv_eth; 
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * ethanol_produced[t];
+
+
+
+#NODE JET_ETHANOL_PLANTS
+// In GW
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 100;
+capex_existing = 7836/11.94;
+fom_existing = 0/11.94;
+vom_existing = 0/11.94;
+capex = 7836/11.94;
+fom = 0/11.94;
+vom = 0/11.94;
+lifetime_existing = 30;
+lifetime = 30;
+conversion_factor_eth = 3.61; 
+hhv_eth = 8.267; 
+lhv_eth = 7.472;
+lhv_h2 = 33.322; 
+minimum_level = 1;
+ramp_rate_up = 0.0;
+ramp_rate_down = 0.0;
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: jet_fuel_produced[T];  
+external: ethanol_consumed[T]; 
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+ethanol_consumed[t] >= 0; 
+jet_fuel_produced[t] >= 0; 
+minimum_level * (pre_installed_capacity + new_capacity) <= jet_fuel_produced[t];
+jet_fuel_produced[t] <= pre_installed_capacity + new_capacity;
+jet_fuel_produced[i] - jet_fuel_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+jet_fuel_produced[i] - jet_fuel_produced[i-1] >= -ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1]; 
+ethanol_consumed[t] == conversion_factor_eth * jet_fuel_produced[t]/lhv_eth; 
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * jet_fuel_produced[t];
+
+
+
+#NODE ETHANOL_STORAGE_HUB
+// In GW
+#PARAMETERS
+pre_installed_capacity_stock = 0;
+pre_installed_capacity_flow = 0;
+max_capacity_stock = 100;
+max_capacity_flow = 1 * max_capacity_stock;
+capex_stock_existing = 2.778/7.472;
+capex_flow_existing = 0.0625/7.472;
+fom_stock_existing = 0.0/7.472;
+fom_flow_existing = 0.0/7.472;
+vom_stock_existing = 0.0/7.472;
+vom_flow_existing = 0.0/7.472;
+lifetime_stock_existing = 30;
+lifetime_flow_existing = 30;
+capex_stock = 2.778;
+capex_flow = 0.0625;
+fom_stock = 0.0;
+fom_flow = 0.0;
+vom_stock = 0.0;
+vom_flow = 0.0;
+lifetime_stock = 30;
+lifetime_flow = 30;
+wacc = global.wacc;
+nb_year = T/8760;
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc)**(-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc)**(-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc)**(-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc)**(-lifetime_flow_existing));
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock
+                     + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: capacity_flow;
+internal: capacity_stock;
+internal: ethanol_stored[T];
+external: ethanol_charged[T];
+external: ethanol_discharged[T];
+
+#CONSTRAINTS
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+ethanol_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+ethanol_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+ethanol_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+ethanol_stored[0] == ethanol_stored[T-1];
+ethanol_stored[t+1] == ethanol_stored[t] + ethanol_charged[t] - ethanol_discharged[t];
+capacity_flow >= 0;
+capacity_stock >= 0;
+ethanol_stored[t] >= 0;
+ethanol_charged[t] >= 0;
+ethanol_discharged[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock
+             + nb_year * (yearly_capex_flow + fom_flow) * capacity_flow
+            + yearly_existing_cost;
+min var_cost: vom_stock * ethanol_stored[t] + vom_flow * ethanol_charged[t];
+
+
+
+
+
+#NODE JET_FUEL_STORAGE
+
+#PARAMETERS 
+pre_installed_capacity_stock = 0;    // GWh  
+pre_installed_capacity_flow = 0;     // GWh/h  
+
+max_capacity_stock = 100;           // GWh  
+max_capacity_flow = 1 * max_capacity_stock; // GWh/h
+
+capex_stock_existing = 0;             // M€/GWh
+capex_flow_existing = 0;              // M€/GWh/h
+fom_stock_existing = 0.05282;         // M€/GWh/yr
+fom_flow_existing = 0.0;              // M€/GWh/h/yr
+vom_stock_existing = 0.0;             // M€/GWh
+vom_flow_existing = 0.0;              // M€/GWh
+lifetime_stock_existing = 30.0;       // years
+lifetime_flow_existing = 30.0;        // years
+
+capex_stock = 0;                     // M€/GWh
+capex_flow = 0;                      // M€/GWh/h
+fom_stock = 0.05282;                  // M€/GWh/yr
+fom_flow = 0.0;                      // M€/GWh/h/yr
+vom_stock = 0.0;                     // M€/GWh
+vom_flow = 0.0;                      // M€/GWh
+lifetime_stock = 30.0;               // years
+lifetime_flow = 30.0;                // years
+
+wacc = 0.07;
+nb_year = T/8760;
+
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc)**(-lifetime_stock));         // M€/GWh/yr
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc)**(-lifetime_flow));             // M€/GWh/h/yr
+
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc)**(-lifetime_stock_existing)); // M€/GWh/yr
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc)**(-lifetime_flow_existing));    // M€/GWh/h/yr
+
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock
+                     + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow; // M€/yr
+
+#VARIABLES
+internal: capacity_flow;           // GWh/h
+internal: capacity_stock;          // GWh  
+internal: jet_fuel_stored[T];      // GWh
+external: jet_fuel_charged[T];     // GWh/h
+external: jet_fuel_discharged[T];  // GWh/h
+
+#CONSTRAINTS 
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+
+
+jet_fuel_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+jet_fuel_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+jet_fuel_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+jet_fuel_stored[0] == jet_fuel_stored[T-1];
+jet_fuel_stored[t+1] == jet_fuel_stored[t] + jet_fuel_charged[t] - jet_fuel_discharged[t];
+jet_fuel_stored[t] >= 0;
+jet_fuel_charged[t] >= 0;
+jet_fuel_discharged[t] >= 0; 
+
+capacity_flow >= 0;
+capacity_stock >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock
+             + nb_year * (yearly_capex_flow + fom_flow) * capacity_flow
+            + yearly_existing_cost;
+
+min var_cost: vom_stock * ( jet_fuel_stored[t])
+            + vom_flow * ( jet_fuel_charged[t]);

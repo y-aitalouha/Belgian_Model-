@@ -1,0 +1,48 @@
+#TIMEHORIZON
+T = 8760 * 1; 
+
+#NODE WIND_OFFSHORE
+// ASSET data for 2050 have been taken as defaults for cost parameters
+// Pre installed and max capacities are for Belgium (Elia data)
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+production_profile = import "../Data/Load_factor/load_factor_woff.csv"; 	// adimensional & normalized	
+pre_installed_capacity = 2.3; 					        // GW(e)
+max_capacity = 8; 						                // GW(e)
+// data from ASSET 2050
+capex_existing = 1995.0; 						        // M€/GW(e)
+fom_existing = 32.0; 							        // M€/GW(e)/yr  
+vom_existing = 0.39 / (10**3); 						    // M€/GWh(e)    
+lifetime_existing = 25;							        // years	
+// data from ASSET 2050
+capex = 1995.0; 						                // M€/GW(e)
+fom = 32.0; 							                // M€/GW(e)/yr  
+vom = 0.39 / (10**3); 						            // M€/GWh(e)    
+lifetime = 25;							                // years					
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                        // M€/GW(e)/yr 
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));             // M€/GW(e)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;             // M€/yr
+
+#VARIABLES
+internal: new_capacity; 					            // GW(e)		
+external: e_produced[T]; 					            // GWh(e)
+external: e_curtailed[T];
+
+#CONSTRAINTS
+new_capacity >= 0;									
+pre_installed_capacity + new_capacity <= max_capacity;					
+e_produced[t] >= 0;
+e_curtailed[t] >= 0;
+e_produced[t] + e_curtailed[t] == production_profile[t] * (pre_installed_capacity + new_capacity);	// global.woff_profile defined in the central txt file
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		// M€	
+min var_cost: vom * e_produced[t];                                  // M€
+
+

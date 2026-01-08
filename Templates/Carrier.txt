@@ -1,0 +1,96 @@
+#TIMEHORIZON
+T = 8760 * 1; 
+
+#NODE SHIPS
+
+#PARAMETERS
+pre_installed_capacity = 0.0;          // kt
+max_capacity = 500.0;                  // kt
+full_capex = 0.69;                     // M€/kt
+fom_existing = 0.004;                  // M€/kt/year
+vom = 0.0;
+lifetime_existing = 30;
+lifetime = 30;
+wacc = 0.07;
+loading_time = 24;                     // h
+travel_time = 116;                     // h
+conversion_factor = 0.9934;
+number_carriers = 7;
+nb_year = T / 8760;
+schedule = import "../Data/carrier_schedule.csv";
+
+yearly_capex = full_capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = full_capex * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;               // kt
+external: flow_in[T];                 // kt/h
+external: flow_out[T];                // kt/h
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+
+flow_in[t] <= (pre_installed_capacity + new_capacity) * number_carriers * schedule[t];
+flow_out[t + travel_time] == conversion_factor * flow_in[t];
+flow_out[t] == 0 where t < travel_time;
+
+flow_in[t] >= 0;
+flow_out[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom_existing) * new_capacity * loading_time * number_carriers + yearly_existing_cost;
+min var_cost: vom * flow_in[t];
+
+
+
+
+
+
+#NODE TRUCKS
+
+#PARAMETERS
+pre_installed_capacity = 0.0;           // kt
+max_capacity = 500.0;                   // kt
+capex_existing = 0.3;                   // M€/kt
+fom_existing = 0.02;                    // M€/kt/year
+vom = 0.015;                            // M€/kt
+lifetime_existing = 10;
+capex = 0.3;                            // M€/kt
+fom = 0.02;                             // M€/kt/year
+lifetime = 10;
+conversion_efficiency = 0.995;
+travel_time = 3;                        // h
+wacc = 0.07;
+fuel_consumption = 0.4;                // MWh_fuel/kt
+fuel_cost = 0.05;                      // M€/MWh
+nb_year = T / 8760;
+number_carriers = 50;
+loading_time = 4;                     // h
+
+// Cost formulas
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;                // kt
+external: flow_in[T];                  // kt/h
+external: flow_out[T];                 // kt/h
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+
+flow_in[t] <= (pre_installed_capacity + new_capacity) * number_carriers;
+flow_out[t + travel_time] == conversion_efficiency * flow_in[t];
+flow_out[t] == 0 where t < travel_time;
+
+flow_in[t] >= 0;
+flow_out[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity * loading_time * number_carriers + yearly_existing_cost;
+min var_cost: vom * flow_in[t];
+min fuel_cost: fuel_cost * fuel_consumption * flow_in[t];

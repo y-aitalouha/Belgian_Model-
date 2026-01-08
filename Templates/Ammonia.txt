@@ -1,0 +1,285 @@
+#TIMEHORIZON
+T = 8760;
+
+
+#NODE N2_PLANTS
+
+// In kt/h
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 100;
+capex_existing = 850;
+fom_existing = 50.0;
+vom_existing = 0.0;
+lifetime_existing = 30.0;
+
+capex = 850;
+fom = 50.0;
+vom = 0.0;
+lifetime = 30.0;
+
+conversion_factor_electricity = 0.1081;
+minimum_level = 0.1;
+ramp_rate_up = 1.0;
+ramp_rate_down = 1.0;
+
+wacc = 0.07;
+nb_year = T/8760;
+
+yearly_capex = capex * wacc / (1 - (1 + wacc) ** (-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc) ** (-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity; // kt/h
+external: n2_produced[T];
+external: e_consumed[T];
+
+#CONSTRAINTS
+new_capacity + pre_installed_capacity <= max_capacity;
+n2_produced[t] <= new_capacity + pre_installed_capacity;
+n2_produced[t] >= minimum_level * (new_capacity + pre_installed_capacity);
+n2_produced[t] <= n2_produced[t-1] + ramp_rate_up * (new_capacity + pre_installed_capacity);
+n2_produced[t-1] <= n2_produced[t] + ramp_rate_down * (new_capacity + pre_installed_capacity);
+e_consumed[t] == conversion_factor_electricity * n2_produced[t];
+
+new_capacity >= 0;
+n2_produced[t] >= 0;
+e_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * n2_produced[t];
+
+
+
+#NODE N2_STORAGE
+
+// In kt/h
+#PARAMETERS
+pre_installed_capacity_stock = 0.0;
+pre_installed_capacity_flow = 0.0;
+max_capacity_stock = 100;
+max_capacity_flow = 100;
+
+capex_stock_existing = 45.0;
+capex_flow_existing = 0.0;
+fom_stock_existing = 2.25;
+fom_flow_existing = 0.0;
+vom_stock_existing = 0.0;
+vom_flow_existing = 0.0;
+lifetime_stock_existing = 30.0;
+lifetime_flow_existing = 30.0;
+
+capex_stock = 45.0;
+capex_flow = 0.0;
+fom_stock = 2.25;
+fom_flow = 0.0;
+vom_stock = 0.0;
+vom_flow = 0.0;
+lifetime_stock = 30.0;
+lifetime_flow = 30.0;
+
+conversion_factor_electricity = 0.1081;
+self_discharge = 0.0;
+wacc = 0.07;
+nb_year = T/8760;
+
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc) ** (-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc) ** (-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc) ** (-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc) ** (-lifetime_flow_existing));
+
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock +
+                       (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: capacity_stock;
+internal: capacity_flow;
+internal: n2_stored[T];
+external: n2_charged[T];
+external: n2_discharged[T];
+external: e_consumed[T];
+
+#CONSTRAINTS
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+n2_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+n2_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+n2_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+n2_stored[0] == n2_stored[T-1];
+n2_stored[t+1] == (1 - self_discharge) * n2_stored[t] + n2_charged[t] - n2_discharged[t];
+e_consumed[t] == conversion_factor_electricity * n2_charged[t];
+
+capacity_flow >= 0;
+capacity_stock >= 0;
+n2_stored[t] >= 0;
+n2_charged[t] >= 0;
+n2_discharged[t] >= 0;
+e_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock +
+              nb_year * (yearly_capex_flow + fom_flow) * capacity_flow +
+            yearly_existing_cost;
+min var_cost: vom_stock * n2_stored[t] + vom_flow * n2_charged[t];
+
+
+
+#NODE NH3_PLANTS
+// Note that the capacity is in GW, not kt/h.
+// In order to compare it with other efuels.
+// This node was modeled based on the ENSDK ammonia production model, which is in kt/h.
+// Thus one has to convert the capacity from kt/h to GW using the lower heating value of ammonia (6.25 kWh/kg).
+
+// Cost COMPUTATION: From ensdk:
+
+// In 2030, 458 ton/day for 100MW
+// CAPEX: 1.3M€ per MW --> 6812.5 M€/(kton/h)
+// FOM: 39k€/MW per year --> 204.37 M€/y per kt/h NH3
+
+// In 2050, 2290 ton/day for 500MW  
+// CAPEX: 0.8M€ per MW --> 4192.14 M€/(kton/h)
+// FOM: 24k€/MW per year --> 125.76 M€/y per kt/h NH3
+
+
+// In GW
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 500;
+
+lhv_nh3 = 6.25; // kWh/kg
+lhv_h2 = 33.322; // kWh/kg
+
+capex_existing = 4192.14/6.25;         // or 6825 in M€ per kt/h NH3
+fom_existing = 204.75/6.25;         // 204.75 in M€/y per kt/h NH3
+vom_existing = 0.000105/6.25;       // 0.000105 in M€ per kt/h NH3
+lifetime_existing = 30.0;
+
+capex = 4192.14/6.25;          
+fom = 204.75/6.25;         
+vom = 0.000105/6.25;
+lifetime = 30.0;        
+
+conversion_factor_electricity = 0.6;  // (GWh)/(kton/h) 
+conversion_factor_hydrogen = 0.178;  // kt/kt
+conversion_factor_n2 = 0.822; // kt/kt 
+
+minimum_level = 0.2;
+ramp_rate_up = 1;
+ramp_rate_down = 1;
+outage = 0;
+planned_outage = 3 /52;                             // 3 weeks/52       
+
+wacc = 0.07;
+nb_year = T/8760;
+
+yearly_capex = capex * wacc / (1 - (1 + wacc) ** (-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc) ** (-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;  // GW
+external: nh3_produced[T]; // GWh 
+external: e_consumed[T]; 
+external: h2_consumed[T];
+external: n2_consumed[T];
+
+#CONSTRAINTS
+new_capacity + pre_installed_capacity <= max_capacity;
+nh3_produced[t] <= new_capacity + pre_installed_capacity;
+nh3_produced[t] >= minimum_level * (new_capacity + pre_installed_capacity);
+outage * sum(nh3_produced[i] for i in [0:T-1]) <= outage * (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+nh3_produced[t] <= nh3_produced[t-1] + ramp_rate_up * (new_capacity + pre_installed_capacity);
+nh3_produced[t-1] <= nh3_produced[t] + ramp_rate_down * (new_capacity + pre_installed_capacity); 
+e_consumed[t] == conversion_factor_electricity * nh3_produced[t]/lhv_nh3;
+h2_consumed[t]/lhv_h2 == conversion_factor_hydrogen * nh3_produced[t]/lhv_nh3;
+n2_consumed[t] == conversion_factor_n2 * nh3_produced[t]/lhv_nh3;
+
+new_capacity >= 0;
+nh3_produced[t] >= 0;
+// e_consumed_by_plant[t] >= 0;
+e_consumed[t] >= 0;
+h2_consumed[t] >= 0;
+n2_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * nh3_produced[t]; 
+
+
+// #HYPEREDGE Nitrogen 
+// #CONSTRAINTS
+// N2_PLANTS.n2_produced[t] + N2_STORAGE.n2_discharged[t] + N2_STORAGE.n2_charged[t] == NH3_PLANTS.n2_consumed[t];
+// NH3_PLANTS.e_consumed[t] == NH3_PLANTS.e_consumed_by_plant[t] + N2_STORAGE.e_consumed[t] + N2_PLANTS.e_consumed[t];
+
+
+
+#NODE NH3_STORAGE
+
+// In GW
+#PARAMETERS
+pre_installed_capacity_stock = 0;
+pre_installed_capacity_flow = 0;
+max_capacity_stock = 100;
+max_capacity_flow = 100;
+
+capex_stock_existing = 0.867/6.25;
+capex_flow_existing = 0.10/6.25;
+fom_stock_existing = 0.0/6.25;
+fom_flow_existing = 0.0/6.25;
+vom_stock_existing = 0.0/6.25;
+vom_flow_existing = 0.0/6.25;
+lifetime_stock_existing = 30.0;
+lifetime_flow_existing = 50.0;
+
+capex_stock = 0.867/6.25;
+capex_flow = 0.10/6.25;
+fom_stock = 0.0/6.25;
+fom_flow = 0.0/6.25;
+vom_stock = 0.0/6.25;
+vom_flow = 0.0/6.25;
+lifetime_stock = 30.0;
+lifetime_flow = 50.0;
+
+self_discharge = 0.00003;
+wacc = 0.07;
+nb_year = T/8760; 
+
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc) ** (-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc) ** (-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc) ** (-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc) ** (-lifetime_flow_existing));
+
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock +
+                       (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: capacity_stock;
+internal: capacity_flow;
+internal: nh3_stored[T];
+external: nh3_charged[T];
+external: nh3_discharged[T];
+
+#CONSTRAINTS
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+nh3_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+nh3_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+nh3_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+nh3_stored[0] == (1 - self_discharge) * nh3_stored[T-1] + nh3_charged[T-1] - nh3_discharged[T-1];  
+// nh3_discharged[t] <= nh3_stored[t];
+nh3_stored[i+1] == (1 - self_discharge) * nh3_stored[i] + nh3_charged[i] - nh3_discharged[i] for i in [0:T-2];  
+capacity_stock >= 0;
+capacity_flow >= 0;
+nh3_stored[t] >= 0;
+nh3_charged[t] >= 0;
+nh3_discharged[t] >= 0;
+
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock +
+              nb_year * (yearly_capex_flow + fom_flow) * capacity_flow +
+            yearly_existing_cost;
+min var_cost: vom_stock * nh3_stored[t] + vom_flow * nh3_charged[t];
+

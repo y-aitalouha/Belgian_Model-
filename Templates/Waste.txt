@@ -1,0 +1,60 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE WASTE
+// ASSET data for 2050 have been taken as defaults for cost and efficiency parameters 
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+pre_installed_capacity = 0.336;         // GW(e)
+max_capacity = 100;                     // GW(e)
+// data from ASSET 2020
+capex_existing = 2030;                  // M€/GW(e)
+fom_existing = 52.3;                    // M€/GW(e)/yr
+vom_existing = 0.82 * 1/(10**3);        // M€/GWh(e)
+lifetime_existing = 20;                 // years
+// data from ASSET 2050
+capex = 1997;                           // M€/GW(e)
+fom = 39.2;                             // M€/GW(e)/yr
+vom = 0.82 * 1/(10**3);                 // M€/GWh(e)
+conversion_efficiency = 0.39;           // GWh(e)/GWh(waste)
+lifetime = 20;                          // years
+// Other
+fuel_cost = 10.0 * 1/(10**3);           // M€/GWh(e) from Berger et al. 2019
+min_external_power = 0.2;               // from Berger et al.
+planned_outage = 1.8/52;                // weeks/52, data from ens.dk waste chp
+spec_CO2_emission = 0.33;               // kt(co2)/GWh(waste) data from Berger et al. 2019
+ramp_rate_up = 0.25;                    // from Berger et al. 2019
+ramp_rate_down = 0.3;                   // from Berger et al. 2019
+nb_year = T/8760;
+wacc = 0.07;
+minimum_capacity_factor = 0.1; 		
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/GW(e)/yr
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/GW(e)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+// Conversion factors
+conversion_factor_waste = conversion_efficiency;                                    // GWh(e)/GWh(biomass)
+conversion_factor_carbon_dioxide = conversion_factor_waste/spec_CO2_emission;       // GWh(e)/kt(co2)
+
+
+#VARIABLES
+internal: new_capacity;                 // GW(e)
+external: e_produced[T];                // GWh(e) 
+external: co2_produced[T];              // kt(co2)
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+min_external_power * (new_capacity + pre_installed_capacity) <= e_produced[t];
+e_produced[t] <= (new_capacity + pre_installed_capacity); 
+e_produced[i] - e_produced[i-1] <= ramp_rate_up * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+e_produced[i] - e_produced[i-1] >= - ramp_rate_down * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+sum(e_produced[i] for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+co2_produced[t] == e_produced[t]/conversion_factor_carbon_dioxide;
+sum(e_produced[i] for i in [0:T-1]) >= minimum_capacity_factor * (pre_installed_capacity + new_capacity) * T;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		        // M€	
+min var_cost: vom * e_produced[t];                                          // M€
+min fuel_cost: fuel_cost * e_produced[t]/conversion_factor_waste;          // M€

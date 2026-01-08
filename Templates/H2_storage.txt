@@ -1,0 +1,75 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE H2_STORAGE
+// data from Berget et al. 2019
+
+#PARAMETERS
+unit_power_GW = 0;
+unit_energy_GWh = 0;
+energy_hydrogen = 0;
+pre_installed_capacity_energy = 0;                                              // GWh(h2_lhv)
+max_capacity_energy = 250.0;                                                    // GWh(h2_lhv)
+capex_power_existing = 0.0;                                                     // M€/GW(h2_lhv)
+capex_energy_existing = 11;                                                     // M€/GWh(h2_lhv)
+fom_power_existing = 0.0;                                                       // M€/GW(h2_lhv)/yr
+fom_energy_existing = 0.55;                                                     // M€/GWh(h2_lhv)/yr
+vom_power_existing = 0.0;                                                       // M€/GWh(h2_lhv)
+vom_energy_existing = 0.0;                                                      // M€/GWh(h2 hhv)
+lifetime_power_existing = 30;                                                   // years
+lifetime_energy_existing = 30;                                                  // years
+// data from ens.dk
+capex_power = 0;                                                                // M€/GW(h2_lhv)
+capex_energy = 21;                                                              // M€/GWh(h2_lhv)
+fom_power = 0.4;                                                                // M€/GW(h2_lhv)/yr
+fom_energy = 0.0;                                                              // M€/GWh(h2_lhv)/yr
+vom_power = 0.0;                                                                // M€/GWh(h2_lhv)
+vom_energy = 0.0;                                                               // M€/GWh(h2_lhv)
+lifetime_power = 30;                                                            // years
+lifetime_energy = 30;                                                           // years
+duration_ratio = 1;                                                           // ratio between the power capacity and the energy capacity
+pre_installed_capacity_power = duration_ratio * pre_installed_capacity_energy;  // GW(h2_lhv)
+max_capacity_power = duration_ratio * max_capacity_energy;                      // GW(h2_lhv)
+max_charged = 1;
+charge_efficiency = 0.9;
+discharge_efficiency = 1;
+self_discharge = 1; // %
+nb_year = T/8760;
+e_consumption = 0.08; 
+// yearly capex
+wacc = 0.07;
+yearly_capex_power = capex_power * wacc / (1 - (1 + wacc)**(-lifetime_power));                                          // M€/GW(h2_lhv)/yr
+yearly_capex_energy = capex_energy * wacc / (1 - (1 + wacc)**(-lifetime_energy));                                       // M€/GWh(h2_lhv)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_power_existing = capex_power_existing * wacc / (1 - (1 + wacc)**(-lifetime_power_existing));               // M€/GW(h2_lhv)/yr
+yearly_capex_energy_existing = capex_energy_existing * wacc / (1 - (1 + wacc)**(-lifetime_energy_existing));            // M€/GWh(h2_lhv)/yr
+yearly_existing_cost = (yearly_capex_power_existing + fom_power_existing) * pre_installed_capacity_power 		          
+                     + (yearly_capex_energy_existing + fom_energy_existing) * pre_installed_capacity_energy; 	        // M€/yr
+
+#VARIABLES
+internal: new_energy_capacity;              // GWh(h2_lhv)
+internal: new_power_capacity;               // GW(h2_lhv)
+external: h2_charged[T];                       // GWh(h2_lhv) - h2 h2_charged
+external: state_of_charge[T];               // GWh(h2_lhv)
+external: h2_discharged[T];                    // GWh(h2_lhv) - h2 h2_discharged
+external: e_consumed[T];                    // GWh(e)
+
+#CONSTRAINTS
+h2_charged[t] >= 0;
+state_of_charge[t] >= 0;
+h2_discharged[t] >= 0;
+new_energy_capacity >= 0;
+new_power_capacity >= 0;
+new_energy_capacity + pre_installed_capacity_energy <= max_capacity_energy;
+state_of_charge[0] == self_discharge * state_of_charge[T-1] + charge_efficiency * h2_charged[T-1] - 1/discharge_efficiency * h2_discharged[T-1];
+state_of_charge[t] <= new_energy_capacity + pre_installed_capacity_energy;
+state_of_charge[i+1] == self_discharge * state_of_charge[i] + charge_efficiency * h2_charged[i] - 1/discharge_efficiency * h2_discharged[i] for i in [0:T-2];
+h2_discharged[t] <= new_power_capacity + pre_installed_capacity_power;
+h2_charged[t] <= max_charged * (new_power_capacity + pre_installed_capacity_power);
+e_consumed[t] == e_consumption * h2_charged[t];
+
+#OBJECTIVES
+min fix_cost_power: (yearly_capex_power + fom_power) * nb_year * new_power_capacity;                                        // M€
+min fix_cost_energy: (yearly_capex_energy + fom_energy) * nb_year * new_energy_capacity;                                    // M€
+min var_cost_power: vom_power * h2_charged[t];                                                                                 // M€
+min var_cost_energy: vom_energy * state_of_charge[t];                                                                       // M€

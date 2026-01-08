@@ -1,0 +1,53 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE DAC
+// Data from ens.dk, low temperature direct air capture
+
+#PARAMETERS
+unit_kt_h = 0;
+energy_carbon_dioxide = 0;
+pre_installed_capacity = 0.0;           // kt(co2)/h
+max_capacity = 3.5;                     // kt(co2)/h
+// data from Berger et al 2021 (Remote hub)
+capex_existing = 4801.4;                // M€/kt(co2)/h
+fom_existing = 0.0;                     // M€/kt(co2)/h/yr
+vom_existing = 0.0207;                  // M€/kt(co2)
+lifetime_existing = 30;
+// data from ens.dk
+capex = 4000.0;                         // M€/kt(co2)/h
+fom = 20.0;                             // M€/kt(co2)/h/yr
+vom = 0.0;                              // M€/kt(co2)
+lifetime = 30;                          // years
+electricity_required_for_CO2 = 0.28;    // GWh(e)/kt(co2)
+heat_input = 1.5;                       // GWh(e)/kt(co2) assumed the use of a electrical heater
+// Other
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/kt(co2)/h/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/kt(co2)/h/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+// Conversion factors
+conversion_factor_electricity = electricity_required_for_CO2;       // GWh(e)/kt(co2)        
+conversion_water = 5.0;                                      // kt(h2o)/kt(co2) assumed value                       
+
+#VARIABLES
+internal: new_capacity;                 // kt(co2)/h - carbon dioxide is the reference flow for sizing
+external: e_consumed[T];                // GWh(e)
+external: co2_captured[T];              // kt(co2)/h
+external: h2o_consumed[T];              // kt(h2o)/h
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+co2_captured[t] >= 0;
+co2_captured[t] <= (new_capacity + pre_installed_capacity);
+e_consumed[t] == (heat_input + conversion_factor_electricity) * co2_captured[t];
+h2o_consumed[t] == conversion_water * co2_captured[t];
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity;     // M€
+min var_cost: vom * co2_captured[t];                             // M€
+max co2_capt_cost: global.co2_emission_cost * co2_captured[t];   // M€

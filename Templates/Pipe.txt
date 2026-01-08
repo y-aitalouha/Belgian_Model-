@@ -1,0 +1,65 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE PIPE 
+// data from Berger et al. 2019 (to be updated by the data from)
+
+#PARAMETERS
+unit_GW = 0;
+pre_installed_capacity_forward = 0;     // GW(h2_lhv or ch4_lhv) 
+pre_installed_capacity_reverse = 0;     // GW(h2_lhv or ch4_lhv)
+max_capacity_forward = 100;             // GW(h2_lhv or ch4_lhv)
+max_capacity_reverse = 100;             // GW(h2_lhv or ch4_lhv)
+length = 100;                           // length of the pipe in km
+// data from Berger et al. 2019
+capex_existing = 0.0925 * length;       // M€/GW(h2_lhv or ch4_lhv) 
+fom_existing = 0.002775 * length;       // M€/GW(h2_lhv or ch4_lhv)/yr 
+vom_existing = 0;                       // M€/GWh(h2_lhv or ch4_lhv)  
+lifetime_existing = 40.0;               // years
+// data from Berger et al. 2019
+capex = 0.0925 * length;                // M€/GW(h2_lhv or ch4_lhv)
+fom = 0.002775 * length;                // M€/GW(h2_lhv or ch4_lhv)/yr
+vom = 0.000001;                         // M€/GWh(h2_lhv or ch4_lhv  
+lifetime = 40.0;                        // years
+efficiency_pipe = 0.9992;
+e_consumption = 0.015;                  // GW(e)/GWh(h2_lhv or ch4_lhv)
+// Other                    
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/GW(h2_lhv or ch4_lhv)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/GW(h2_lhv or ch4_lhv)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity_forward;         // M€/yr
+
+
+#VARIABLES
+external: new_capacity_forward;         // GW(h2_lhv or ch4_lhv)
+external: new_capacity_reverse;         // GW(h2_lhv or ch4_lhv)
+external: flow_forward_in[T];           // GWh(h2_lhv or ch4_lhv)
+external: flow_forward_out[T];          // GWh(h2_lhv or ch4_lhv)
+external: flow_reverse_in[T];           // GWh(h2_lhv or ch4_lhv)
+external: flow_reverse_out[T];          // GWh(h2_lhv or ch4_lhv)
+external: e_consumed[T];                // GW(e)
+
+#CONSTRAINTS
+new_capacity_forward >= 0;
+new_capacity_reverse >= 0;
+new_capacity_forward + pre_installed_capacity_forward <= max_capacity_forward;
+new_capacity_reverse + pre_installed_capacity_reverse <= max_capacity_reverse;
+(new_capacity_reverse + pre_installed_capacity_reverse) <= new_capacity_forward + pre_installed_capacity_forward;
+flow_forward_in[t] >= 0;
+flow_reverse_in[t] >= 0; 
+flow_forward_in[t] <= new_capacity_forward + pre_installed_capacity_forward;
+//flow_forward_in[i] - flow_forward_in[i-1] <= ramp_rate_up * (new_capacity_forward + pre_installed_capacity_forward) for i in [1:T-1];
+//flow_forward_in[i] - flow_forward_in[i-1] >= - ramp_rate_down * (new_capacity_forward + pre_installed_capacity_forward) for i in [1:T-1];
+flow_reverse_in[t] <= new_capacity_reverse + pre_installed_capacity_reverse;
+//flow_reverse_in[i] - flow_reverse_in[i-1] <= ramp_rate_up * (new_capacity_reverse + pre_installed_capacity_reverse) for i in [1:T-1];
+//flow_reverse_in[i] - flow_reverse_in[i-1] >= - ramp_rate_down * (new_capacity_reverse + pre_installed_capacity_reverse) for i in [1:T-1];
+flow_forward_out[t] == efficiency_pipe * flow_forward_in[t]; 
+flow_reverse_out[t] == efficiency_pipe * flow_reverse_in[t]; 
+e_consumed[t] == e_consumption * (flow_forward_in[t] + flow_reverse_in[t]);
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity_forward;        // M€
+min var_cost: vom * (flow_forward_in[t] + flow_reverse_in[t]);              // M€

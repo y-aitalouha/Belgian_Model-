@@ -1,0 +1,94 @@
+#TIMEHORIZON
+T = 8760;
+
+/////////////////////////////////////////////
+////////////// Efuel storage ////////////////
+/////////////////////////////////////////////
+
+
+#NODE HYDROGEN_LIQUEFACTION_PLANTS
+// Hydrogen liquefaction unit – based on DNV.GL (2020) and Connelly et al. (2019)
+
+#PARAMETERS
+full_capex = 45000.0;                                       // M€/kt/h
+lifetime = 40.0;                                            // years
+fom = 1125.0;                                               // M€/kt/h/year
+vom = 0.0;                                                  // M€/kt
+
+conversion_factor_electricity = 12;                        // GWh/kt
+conversion_factor_hydrogen = 1.0;                          // kt_in/kt_liquefied
+minimum_level = 1.0;                                        // share of capacity
+ramp_rate_up = 0.0;
+ramp_rate_down = 0.0;
+
+pre_installed_capacity = 0;                                 // kt/h
+max_capacity = 100;                                         // kt/h
+nb_year = T / 8760;
+wacc = 0.07;
+annualised_capex = full_capex * wacc * (1 + wacc)**lifetime / ((1 + wacc)**lifetime - 1);  // M€/kt/h/year
+
+#VARIABLES
+internal: new_capacity;                                     // kt/h
+external: e_consumed[T];                                    // GWh
+external: h2_consumed[T];                                   // kt/h
+external: h2_liq_produced[T];                               // kt/h
+
+#CONSTRAINTS
+new_capacity >= 0;
+new_capacity + pre_installed_capacity <= max_capacity;
+
+h2_liq_produced[t] <= new_capacity + pre_installed_capacity;
+h2_liq_produced[t] >= minimum_level * (new_capacity + pre_installed_capacity);
+
+e_consumed[t] == conversion_factor_electricity * h2_liq_produced[t];
+h2_consumed[t] == conversion_factor_hydrogen * h2_liq_produced[t];
+
+h2_liq_produced[t] <= h2_liq_produced[t-1] + ramp_rate_up * (new_capacity + pre_installed_capacity);
+h2_liq_produced[t-1] <= h2_liq_produced[t] + ramp_rate_down * (new_capacity + pre_installed_capacity);
+
+e_consumed[t] >= 0;
+h2_consumed[t] >= 0;
+h2_liq_produced[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (annualised_capex + fom) * new_capacity;    // M€
+min var_cost: vom * h2_liq_produced[t];                            // M€
+
+
+
+
+
+#NODE HYDROGEN_GASIFICATION_PLANTS
+// Regasification of liquefied hydrogen – based on DNV.GL (2020)
+
+#PARAMETERS
+full_capex = 9099.909;                                       // M€/kt/h
+lifetime = 30.0;                                             // years
+fom = 227.498;                                               // M€/kt/h/year
+vom = 0.0;                                                   // M€/kt
+conversion_factor = 1.0;
+
+pre_installed_capacity = 0;                                   // kt/h
+max_capacity = 100;                                           // kt/h
+nb_year = T / 8760;
+wacc = 0.07;
+annualised_capex = full_capex * wacc * (1 + wacc)**lifetime / ((1 + wacc)**lifetime - 1);  // M€/kt/h/year
+
+#VARIABLES
+internal: new_capacity;                                      // kt/h
+external: h2_liq_consumed[T];                                // kt/h
+external: h2_produced[T];                                    // kt/h
+
+#CONSTRAINTS
+new_capacity >= 0;
+new_capacity + pre_installed_capacity <= max_capacity;
+
+h2_liq_consumed[t] <= new_capacity + pre_installed_capacity;
+h2_produced[t] == conversion_factor * h2_liq_consumed[t];
+
+h2_liq_consumed[t] >= 0;
+h2_produced[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (annualised_capex + fom) * new_capacity;   // M€
+min var_cost: vom * h2_liq_consumed[t];                            // M€

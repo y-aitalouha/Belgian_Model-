@@ -1,0 +1,66 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE METHANATION_PLANTS
+// ASSET data for 2050 
+
+#PARAMETERS
+unit_GW = 0;
+energy_natural_gas = 0;
+pre_installed_capacity = 0.0;           // GW(ch4)
+max_capacity = 100;                     // GW(ch4)
+// data from ASSET 2015
+capex_existing = 1329.5;                // M€/GW(ch4_lhv)
+fom_existing = 46.5;                    // M€/GW(ch4_lhv)/yr
+vom_existing = 1.1 * 1/(10**3);         // M€/GWh(ch4_lhv)
+// data from ASSET 2050
+capex = 291.4;                          // M€/GW(ch4_lhv)
+fom = 10;                               // M€/GW(ch4_lhv)/yr
+vom = 1.1 * 1/(10**3);                  // M€/GWh(ch4_lhv)
+// Other, use default value from Berger et al. 2019
+lifetime_existing = 20;                 // years
+lifetime = 20;                          // years
+ramp_rate_up = 1;                    
+ramp_rate_down = 1;                  
+min_external_power = 0.4;   
+conversion_factor_h2 = 0.5;           // kton(h2 lhv)/kton(ch4 lhv) 
+conversion_factor_elec = 0.32;         // kton(electricity)/kton(ch4 lhv)
+conversion_factor_h2o = 2.25;           // kton(h2o)/kton(ch4 lhv)
+conversion_factor_co2 = 3;          // kton(co2)/kton(ch4 lhv)
+
+lhv_ch4 = 13.9;                         // GWh/kt
+lhv_h2 = 33.322; // kWh/kg
+nb_year = T/8760; 
+green = 0;                            // if green=1, methanation produced ng as efuel
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                        // M€/GW(ch4 lhv)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));             // M€/GW(ch4 lhv)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;             // M€/yr
+
+#VARIABLES
+internal: new_capacity;             // GWh(ch4_lhv)
+external: co2_consumed[T];          // kt/h(co2)
+external: h2_consumed[T];           // GWh(h2_lhv)
+external: ng_produced[T];           // GWh(ch_lhv)
+external: ng_efuel[T];
+external: h2o_produced[T];         // kt/h(h2o)
+external: e_consumed[T];          // GWh(electricity)
+
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+min_external_power * (new_capacity + pre_installed_capacity) <= ng_produced[t] + green * ng_efuel[t];
+ng_produced[t] + green * ng_efuel[t] <= new_capacity + pre_installed_capacity;
+ng_produced[i] + green * ng_efuel[i] <= ng_produced[i-1] + green * ng_efuel[i-1] + ramp_rate_up * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+ng_produced[i] + green * ng_efuel[i] >= ng_produced[i-1] + green * ng_efuel[i-1] - ramp_rate_down * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+co2_consumed[t] == conversion_factor_co2 * (ng_produced[t] + green * ng_efuel[t])/lhv_ch4;
+h2o_produced[t] == conversion_factor_h2o * (ng_produced[t] + green * ng_efuel[t])/lhv_ch4;
+e_consumed[t] == conversion_factor_elec * (ng_produced[t] + green * ng_efuel[t])/lhv_ch4;
+h2_consumed[t]/lhv_h2 == conversion_factor_h2 * (ng_produced[t] + green * ng_efuel[t])/lhv_ch4;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		    // M€	
+min var_cost: vom * (ng_produced[t] + green * ng_efuel[t]);                                     // M€

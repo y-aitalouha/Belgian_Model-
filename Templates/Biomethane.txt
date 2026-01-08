@@ -1,0 +1,73 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE BIOMETHANE
+// Data from ens.dk : biogaz + biogaz upgrading with some adaptations related to the Belgium input biomass mix
+
+#PARAMETERS
+unit_GW = 0;
+energy_natural_gas = 0;
+pre_installed_capacity = 0.0; 				        // GW(ch4_lhv)	to modify, first plants already connected to the gas network in 2021 
+conversion_efficiency = 0.464;                       // GWh(ch4 lhv)/kt(biomass)
+max_capacity = 100; 	        // GW(ch4_lhv) 
+// data from ens.dk 2050 (to change)
+capex_biogas_existing = 1390;                                // M€/GW(ch4 lhv)
+capex_upgrading_existing = 343;                              // M€/GW(ch4 lhv)
+fom_existing = 165.177;                                      // M€/GW(ch4 lhv)/yr
+vom_existing = 0;                                            // M€/GWh(ch4 lhv)
+lifetime_biogas_existing = 20;                               // years
+lifetime_upgrading_existing = 15;                            // years
+// data from ens.dk 2050
+capex_biogas = 1390;                                // M€/GW(ch4 lhv)
+capex_upgrading = 343;                              // M€/GW(ch4 lhv)
+fom = 165.177;                                      // M€/GW(ch4 lhv)/yr
+vom = 0;                                            // M€/GWh(ch4 lhv)
+lifetime_biogas = 20;                               // years
+lifetime_upgrading = 15;                            // years
+min_external_power = 0.5;
+electricity_required = 0.06;                        // GWh(e)/GWh(ch4_lhv)
+planned_outage = 10/365;                            // days/365 
+// data adapted for the Belgium mix
+fuel_cost = 0.0237;                                // M€/kt(biomass)
+// Other
+CO2_consumed_by_CH4 = 0.202;                        // kt(co2)/GW(ch4_lhv)
+co2_emission_cost = 80.0 * 1/(10**3);               // M€/kt(co2)
+ramp_rate_down = 0.01;                              // no info on the ramp rate, assumed very slow to ramp
+ramp_rate_up = 0.01;             
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex_biogas = capex_biogas * wacc / (1 - (1 + wacc)**(-lifetime_biogas));                                           // M€/GW(ch4_lhv)/yr
+yearly_capex_upgrading = capex_upgrading * wacc / (1 - (1 + wacc)**(-lifetime_upgrading));                                  // M€/GW(ch4_lhv)/yr
+yearly_capex = yearly_capex_biogas + yearly_capex_upgrading;                                                                // M€/GW(ch4_lhv)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_biogas_existing = capex_biogas_existing * wacc / (1 - (1 + wacc)**(-lifetime_biogas_existing));                // M€/GW(ch4_lhv)/yr
+yearly_capex_upgrading_existing = capex_upgrading_existing * wacc / (1 - (1 + wacc)**(-lifetime_upgrading_existing));       // M€/GW(ch4_lhv)/yr
+yearly_capex_existing = yearly_capex_biogas_existing + yearly_capex_upgrading_existing;                                     // M€/GW(ch4_lhv)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                                     // M€/yr
+
+#VARIABLES
+internal: new_capacity; 			                // GW(ch4_lhv)	
+external: e_consumed[T];                            // GWh(e)	
+external: ng_produced[T];				            // GWh(ch4_lhv)
+external: co2_captured[T];				            // kt(co2)
+external: biomass_consumed[T];                   // kt(biomass)
+
+#CONSTRAINTS
+new_capacity >= 0;							
+pre_installed_capacity + new_capacity <= max_capacity;			
+ng_produced[t] >= min_external_power * (pre_installed_capacity + new_capacity);	
+ng_produced[t] <= (pre_installed_capacity + new_capacity); 	
+ng_produced[i] <= ng_produced[i-1] + ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+ng_produced[i] >= ng_produced[i-1] - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+// sum(ng_produced[i] for i in [0:T-1]) <= max_potential;
+sum(ng_produced[i] for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+co2_captured[t] == CO2_consumed_by_CH4 * ng_produced[t]; 
+e_consumed[t] == electricity_required * ng_produced[t];	
+biomass_consumed[t] == ng_produced[t]/conversion_efficiency;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		    // M€		
+min var_cost: vom * ng_produced[t];                                     // M€
+min fuel_cost: fuel_cost * biomass_consumed[t];        // M€
+max co2_capt_cost: co2_emission_cost * co2_captured[t];          // M€ 

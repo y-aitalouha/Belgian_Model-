@@ -1,0 +1,50 @@
+#TIMEHORIZON
+T = 8760;
+
+#NODE DESALINATION_PLANTS
+// data from the remote hub
+
+#PARAMETERS
+unit_kt_h = 0;
+energy_water = 0;
+pre_installed_capacity = 0;                                     // kt(h2o)/h - freshwater is the reference flow for sizing
+// data from remote hub 2030
+capex_existing = 28.08;                                         // M€/kt(h2o)/h
+fom_existing = 0.0;                                             // M€/kt(h2o)/h/yr
+vom_existing = 0.000315;                                        // M€/kt(h2o)
+lifetime_existing = 20.0;                                       // years
+// data from remote hub 2030
+capex = 28.08;                                                  // M€/kt(h2o)/h
+fom = 0.0;                                                      // M€/kt(h2o)/h/yr
+vom = 0.000315;                                                 // M€/kt(h2o)
+lifetime = 20.0;                                                // years
+conversion_factor_electricity = 0.004;                          // GWh(e)/kt(h2o)
+min_external_power = 1.0;
+nb_year = T/8760;
+ramp_rate_up = 0.0;
+ramp_rate_down = 0.0;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));    // M€/kt(h2o)/h/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/kt(h2o)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+
+#VARIABLES
+internal: new_capacity;         // kt(h2o)/h 
+external: e_consumed[T];        // GWh(e)
+external: h2o_produced[T];      // kt(h2o)
+
+#CONSTRAINTS
+h2o_produced[t] <= new_capacity;
+min_external_power * new_capacity <= h2o_produced[t];
+e_consumed[t] == conversion_factor_electricity * h2o_produced[t];
+h2o_produced[i] <= h2o_produced[i-1] + ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-2];
+h2o_produced[i] >= h2o_produced[i-1] - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-2];
+new_capacity >= 0;
+e_consumed[t] >= 0;
+h2o_produced[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ;       // M€		
+min var_cost: vom * h2o_produced[t];                                // M€

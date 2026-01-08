@@ -1,0 +1,49 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE HVAC
+// Data from Elia for cost, Berger et al. for efficiency
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+pre_installed_capacity = 3.0;                   // GW(e)
+max_capacity = 100;                             // GW(e)
+capex_existing = 400;                           // M€/GW(e) (Lines + Stations)
+fom_existing = 0.015 * capex_existing;                   // M€/GW(e)/yr
+vom_existing = 0;                               // M€/GWh(e)
+lifetime_existing = 70.0;                       // years
+capex = 400;                                    // M€/GW(e) (Lines + Stations)
+fom = 0.015 * capex;                            // M€/GW(e)/yr
+vom = 0.000001;                                 // M€/GWh(e)
+lifetime = 70.0;                                // years                                 
+efficiency_HVAC = 0.93;
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                            // M€/GW(e)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));                 // M€/GW(e)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;                 // M€/yr
+
+#VARIABLES
+internal: new_capacity;                         // GW(e)
+external: e_forward_in[T];                      // GWh(e)
+external: e_forward_out[T];                     // GWh(e)
+external: e_reverse_in[T];                      // GWh(e)
+external: e_reverse_out[T];                     // GWh(e)
+
+#CONSTRAINTS
+new_capacity >= 0;
+new_capacity + pre_installed_capacity <= max_capacity;
+e_forward_in[t] >= 0;
+e_reverse_in[t] >= 0;
+e_forward_in[t] <= new_capacity + pre_installed_capacity;
+e_reverse_in[t] <= new_capacity + pre_installed_capacity;
+e_forward_out[t] == efficiency_HVAC * e_forward_in[t]; 
+e_reverse_out[t] == efficiency_HVAC * e_reverse_in[t];
+
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ;               // M€	
+min var_cost: vom * (e_forward_in[t] + e_reverse_in[t]);                    // M€

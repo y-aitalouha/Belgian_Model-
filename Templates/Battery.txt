@@ -1,0 +1,80 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE BATTERIES
+// ens.dk data for lithium-ion utility scale for 2050 and 2030 for cost and efficiency parameters
+
+#PARAMETERS
+unit_power_GW = 0;
+unit_energy_GWh = 0;
+energy_electricity = 0;
+pre_installed_capacity_power = 0;                                   // GW(e)
+pre_installed_capacity_energy = 0;                                  // GWh(e)
+max_capacity_energy = 1000;                                         // GWh(e)
+max_capacity_power = 1/5 * max_capacity_energy;                     // GW(e)  
+// data from ens.dk 2030
+capex_power_existing = 160;                                         // M€/GW(e)
+capex_energy_existing = 142;                                        // M€/GWh(e) 
+fom_power_existing = 0.54;                                          // M€/GW(e)/yr
+fom_energy_existing = 0;                                            // M€/GWh(e)/yr
+vom_power_existing = 1.8 * 1/(10**3);                               // M€/GWh(e) of energy e_charged
+vom_energy_existing = 0;                                            // M€/GWh(e) of energy stored
+lifetime_power_existing = 25;                                       // years
+lifetime_energy_existing = 25;                                      // years
+// data from ens.dk 2050
+capex_power = 60;                                                   // M€/GW(e)
+capex_energy = 75;                                                  // M€/GWh(e)
+fom_power = 0.54;                                                   // M€/GW(e)/yr
+fom_energy = 0;                                                     // M€/GWh(e)/yr
+vom_power = 1.6 * 1/(10**3);                                        // M€/GWh(e) of energy e_charged
+vom_energy = 0;                                                     // M€/GWh(e) of energy stored
+lifetime_power = 30;                                                // years
+lifetime_energy = 30;                                               // years 
+charge_efficiency = 0.91;
+discharge_efficiency = 0.9;
+min_SOC = 0.0;  
+self_discharge = 0.9996; 
+planned_outage = 0.1/52;                                            // weeks/52
+max_charged = 1/6;                                                  // fraction of the power capacity that limit the amount of electricity that can be e_charged in 1 hour
+// Other
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex_power = capex_power * wacc / (1 - (1 + wacc)**(-lifetime_power));                                          // M€/GW(e)/yr
+yearly_capex_energy = capex_energy * wacc / (1 - (1 + wacc)**(-lifetime_energy));                                       // M€/GWh(e)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_power_existing = capex_power_existing * wacc / (1 - (1 + wacc)**(-lifetime_power_existing));               // M€/GW(e)/yr
+yearly_capex_energy_existing = capex_energy_existing * wacc / (1 - (1 + wacc)**(-lifetime_energy_existing));            // M€/GWh(e)/yr
+yearly_existing_cost = (yearly_capex_power_existing + fom_power_existing) * pre_installed_capacity_power 		          
+                     + (yearly_capex_energy_existing + fom_energy_existing) * pre_installed_capacity_energy; 	        // M€/yr
+
+#VARIABLES
+internal: new_energy_capacity;                                      // GWh(e)
+internal: new_power_capacity;                                       // GW(e)
+external: e_charged[T];                                               // GWh(e) 
+external: e_discharged[T];                                            // GWh(e) 
+external: state_of_charge[T];                                       // GWh(e)
+
+
+#CONSTRAINTS
+new_energy_capacity >= 0;
+new_energy_capacity <= max_capacity_energy - pre_installed_capacity_energy;
+new_power_capacity >= 0;
+new_power_capacity <= max_capacity_power - pre_installed_capacity_power;
+e_charged[t] >= 0;
+e_discharged[t] >= 0;
+state_of_charge[t] >= 0;
+state_of_charge[0] == self_discharge * state_of_charge[T-1] + charge_efficiency * e_charged[T-1] - 1/discharge_efficiency * e_discharged[T-1];
+min_SOC * (pre_installed_capacity_energy + new_energy_capacity) <= state_of_charge[t];
+state_of_charge[t] <= (pre_installed_capacity_energy + new_energy_capacity);
+state_of_charge[i+1] == self_discharge * state_of_charge[i] + charge_efficiency * e_charged[i] - 1/discharge_efficiency * e_discharged[i] for i in [0:T-2];
+e_discharged[t] <= pre_installed_capacity_power + new_power_capacity;
+e_charged[t] <= max_charged * (pre_installed_capacity_power + new_power_capacity);
+sum(e_discharged[i] for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity_power + new_power_capacity) * T;
+sum(e_charged[i] for i in [0:T-1]) <= (1 - planned_outage) * max_charged * (pre_installed_capacity_power + new_power_capacity) * T;
+
+#OBJECTIVES
+min fix_cost_power: (yearly_capex_power + fom_power) * nb_year * new_power_capacity;            // M€
+min fix_cost_energy: (yearly_capex_energy + fom_energy) * nb_year * new_energy_capacity;        // M€
+min var_cost_power: vom_power * e_charged[t];                                                     // M€
+min var_cost_energy: vom_energy * state_of_charge[t];                                           // M€

@@ -1,0 +1,31 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE NG_INTERCONNECTION
+
+#PARAMETERS
+energy_natural_gas = 0;
+import_capacity = 50;                                               // GW(ch4_lhv)
+export_capacity = 50;                                               // GW(ch4_lhv)
+import_costs_ts = import "../Data/Cost/cost_import_ng.csv";                   // M€/GWh(ch4_lhv)
+import_costs = import_costs_ts;
+export_cost = 0.001;                                                // M€/GWh(ch4_lhv) 
+nb_year = T/8760;                                                   // years
+max_import = 910000 * nb_year;                                      // GWh(ch4_lhv)
+max_export = 910000 * nb_year;                                      // GWh(ch4_lhv)
+
+#VARIABLES
+external: ng_imported[T];                                              // GWh(ch4_lhv)
+external: ng_exported[T];                                              // GWh(ch4_lhv)
+
+#CONSTRAINTS
+ng_imported[t] >= 0;
+ng_imported[t] <= import_capacity;
+sum(ng_imported[i] for i in [0:T-1]) <= max_import;
+ng_exported[t] >= 0;
+ng_exported[t] <= export_capacity;
+sum(ng_exported[i] for i in [0:T-1]) <= max_export;
+
+#OBJECTIVES
+min import_cost: import_costs[t] * ng_imported[t];                     // M€
+max export_cost: export_cost * ng_exported[t];                         // M€

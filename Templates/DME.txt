@@ -1,0 +1,200 @@
+#TIMEHORIZON
+T = 8760;
+
+
+// Note that the capacity is in GW, not kt/h.
+// In order to compare it with other efuels.
+// This node was modeled based on the ENSDK methanol production model, which is in kt/h.
+// Thus one has to convert the capacity from kt/h to GW using the lower heating value of methanol (5.51 MWh/tonne).
+
+
+#NODE DME_D1_PLANTS
+
+// In GW
+
+// Cost COMPUTATION:  
+
+// Assumed 1200 ton/day as methanol from ensdk corresponding to 436 kton/y for economies of scale
+// 10 kton/y for CAPEX of 69.6 M€ and FOM of 4.8 M€/y
+// -> 670.35 M€ thus 12300 M€/(kton/h)
+// -> 46.2 M€/y thus 848.3 M€/y per kt/h dme
+
+
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 100;
+hhv_dme = 8.803; 
+lhv_dme = 8.01; // kWh_dme/kg_dme 
+lhv_h2 = 33.322; // kWh_h2/kg_h2
+capex_existing = 12300/lhv_dme; // was in M€/Kt/h thus divided by lhv
+fom_existing = 1452.6/lhv_dme;
+vom_existing = 0/lhv_dme;
+lifetime_existing = 20;
+capex = 12300/lhv_dme;
+fom = 0.02*capex/lhv_dme;
+vom = 0/lhv_dme;
+lifetime = 20;
+conversion_factor_hydrogen = 0.295;  //kt_h2/Kt_dme
+conversion_factor_co2 = 2.203;   //kt_co2/Kt_dme
+conversion_factor_h2o = 1.172;  //kt_h2o/Kt_dme
+conversion_factor_elec = 0.3;  //GWh_e/Kt_dme
+minimum_level = 1;
+ramp_rate_up = 0;
+ramp_rate_down = 0;
+outage = 0;
+planned_outage = 3 /52;                             // 3 weeks/52   
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity; //GW
+external: dme_produced[T];  //GWh(dme_lhv)
+external: co2_consumed[T];  //Kt(co_2)
+external: e_consumed[T];    //GWh(e)
+external: h2_consumed[T];   //GWh(h_lhv)
+external: h2o_produced[T];  //Kt(h2o)
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+dme_produced[t] >= 0;
+dme_produced[t] >= minimum_level * (pre_installed_capacity + new_capacity);
+dme_produced[t] <= pre_installed_capacity + new_capacity;
+dme_produced[i] - dme_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+dme_produced[i] - dme_produced[i-1] >= - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1]; 
+outage * sum(dme_produced[i] for i in [0:T-1]) <= outage * (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+co2_consumed[t] == conversion_factor_co2 * dme_produced[t]/lhv_dme; 
+e_consumed[t] == conversion_factor_elec * dme_produced[t]/lhv_dme; 
+h2_consumed[t]/lhv_h2 == conversion_factor_hydrogen * dme_produced[t]/lhv_dme;
+h2o_produced[t] == conversion_factor_h2o * dme_produced[t]/lhv_dme;
+co2_consumed[t] >= 0; 
+e_consumed[t] >= 0;
+h2_consumed[t] >= 0;
+h2o_produced[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * dme_produced[t];
+
+
+
+
+#NODE DMEOH_PLANTS
+// In GW
+#PARAMETERS
+pre_installed_capacity = 0.0;
+max_capacity = 100;
+capex_existing = 6993/8.01; // was in M€/Kt/h thus divided by lhv
+fom_existing = 0.02*capex_existing/8.01;
+vom_existing = 0/8.01;
+lifetime_existing = 20;
+capex = 6993/8.01;
+fom = 0.02*capex/8.01;
+vom = 0/8.01;
+lifetime = 20;
+conversion_factor_meoh = 1.39;
+// conversion_factor_elec = 0.2; 
+hhv_dme = 8.803;
+lhv_dme = 8.01;
+lhv_meoh = 5.54;
+minimum_level = 0.1;
+ramp_rate_up = 1.0;
+ramp_rate_down = 1.0;
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: dme_produced[T];
+external: methanol_consumed[T];  
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+dme_produced[t] >= 0;
+dme_produced[t] >= minimum_level * (pre_installed_capacity + new_capacity);
+dme_produced[t] <= pre_installed_capacity + new_capacity;
+dme_produced[i] - dme_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+dme_produced[i] - dme_produced[i-1] >= - ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+methanol_consumed[t]/lhv_meoh == conversion_factor_meoh * dme_produced[t]/lhv_dme; 
+// e_consumed[t] == conversion_factor_elec * dme_produced[t]/lhv_dme; 
+methanol_consumed[t] >= 0;
+// e_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * dme_produced[t];
+
+
+
+
+
+#NODE DME_STORAGE_HUB
+// In GW
+#PARAMETERS
+lhv_dme = 8.01;
+pre_installed_capacity_stock = 0;
+pre_installed_capacity_flow = 0;
+max_capacity_stock = 100;
+max_capacity_flow = 1 * max_capacity_stock;
+capex_stock_existing = 1.497/lhv_dme;
+capex_flow_existing = 1.497/lhv_dme;
+fom_stock_existing = 0.0/lhv_dme;
+fom_flow_existing = 0.0/lhv_dme;
+vom_stock_existing = 0.0/lhv_dme;
+vom_flow_existing = 0.0/lhv_dme;
+lifetime_stock_existing = 30.0;
+lifetime_flow_existing = 30.0;
+capex_stock = 1.497/lhv_dme;
+capex_flow = 1.497/lhv_dme;
+fom_stock = 0.0/lhv_dme;
+fom_flow = 0.0/lhv_dme;
+vom_stock = 0.0/lhv_dme;
+vom_flow = 0.0/lhv_dme;
+lifetime_stock = 30.0;
+lifetime_flow = 30.0;
+wacc = 0.07;
+nb_year = T/8760; 
+charge_discharge_ratio = 1.0;
+self_discharge = 0.00003;
+efficiency_in = 1.0;
+efficiency_out = 1.0;
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc)**(-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc)**(-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc)**(-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc)**(-lifetime_flow_existing));
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock
+                     + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: capacity_flow;
+internal: capacity_stock;
+external: dme_stored[T];
+external: dme_charged[T];
+external: dme_discharged[T];
+
+#CONSTRAINTS
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+dme_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+dme_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+dme_stored[t] <= capacity_stock + pre_installed_capacity_stock; 
+dme_stored[0] == (1 - self_discharge) * dme_stored[T-1] + dme_charged[T-1] - dme_discharged[T-1];  
+dme_stored[i+1] == (1 - self_discharge) * dme_stored[i] + dme_charged[i] - dme_discharged[i] for i in [0:T-2];   
+capacity_flow >= 0;
+capacity_stock >= 0;
+dme_stored[t] >= 0;
+dme_charged[t] >= 0;
+dme_discharged[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock
+             + nb_year * (yearly_capex_flow + fom_flow) * capacity_flow
+            + yearly_existing_cost;
+min var_cost: vom_stock * (dme_stored[t] ) + vom_flow * (dme_charged[t] );

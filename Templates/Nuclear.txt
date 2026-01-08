@@ -1,0 +1,54 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+#NODE NUCLEAR
+// ASSET data for 2050 for nuclear 3rd generation have been taken as defaults for cost and efficiency parameters 
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+pre_installed_capacity = 0;             // GW(e)
+max_capacity = 0;                       // GW(e)
+// data from Berger et al.  
+capex_existing = 0;                     // M€/GW(e) - assuming capex has already been paid
+fom_existing = 92.979;                  // M€/GW(e)/yr
+vom_existing = 2.133 * 1/(10**3);       // M€/GWh(e)
+lifetime_existing = 50;                 // years
+// data from ASSET 2050
+capex = 4700;                           // M€/GW(e)
+fom = 105;                              // M€/GW(e)/yr
+vom = 7.8 * 1/(10**3);                  // M€/GWh(e)
+conversion_efficiency = 0.38;           // GWh(e)/GWh(uranium)
+lifetime = 60;                          // years
+// Other
+fuel_cost = 1.692 * 1/(10**3);          // k€/MWh(e) from Berger et al. 2019
+min_external_power = 0.0;               // from Berger et al.
+planned_outage = 3/52;                  // weeks/52, data from ens.dk 
+ramp_rate_up = 0.01;                    // from Berger et al. 2019
+ramp_rate_down = 0.01;                  // from Berger et al. 2019
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                        // M€/GW(e)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));             // M€/GW(e)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;             // M€/yr
+
+#VARIABLES
+internal: new_capacity;                 // GW(e)
+external: e_produced[T];                // GWh(e) net production of electricity
+external: co2_produced[T];              // kt(co2)
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+min_external_power * (new_capacity + pre_installed_capacity) <= e_produced[t];
+e_produced[t] <= (new_capacity + pre_installed_capacity); 
+e_produced[i] - e_produced[i-1] <= ramp_rate_up * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+e_produced[i] - e_produced[i-1] >= - ramp_rate_down * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+sum(e_produced[i]  for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		                        // M€	
+min var_cost: vom * e_produced[t];                                                          // M€
+min fuel_cost: fuel_cost * e_produced[t]/conversion_efficiency;                             // M€

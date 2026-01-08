@@ -1,0 +1,152 @@
+#TIMEHORIZON
+T = 8760;
+
+
+#NODE HVO_JET_FUEL
+// In GW
+#PARAMETERS
+pre_installed_capacity = 0.0;  
+max_capacity = 100; 	        // GW(lhv_kerosene)
+lhv_kerosene = 12.22;
+lhv_h2 = 33.322; 
+fuel_cost = 0.876;                                // M€/kt(biomass)
+co2_emission_cost = 80.0 * 1/(10**3);               // M€/kt(co2)
+capex_existing = 8671.5/lhv_kerosene;
+fom_existing = 0.02*capex_existing/lhv_kerosene;
+vom_existing = 0/lhv_kerosene;
+capex = 8671.5/lhv_kerosene;
+fom = 0.02*capex/lhv_kerosene;
+vom = 0/lhv_kerosene;
+lifetime_existing = 25;
+lifetime = 25;
+conversion_factor_hydrogen =  0.045; // kton_h2 / kton_kerosene
+conversion_factor_co2 = 0.252; // kton_co2 / GWh_kerosene  
+conversion_factor_elec = 0.06; // GWh_el / kton_kerosene
+conversion_factor_ng = 2.18; // GWh_ng / kton_kerosene  
+conversion_biomass = 1.39; // kton_biomass / kton_kerosene
+minimum_level = 0.1;
+ramp_rate_up = 1.0;
+ramp_rate_down = 1.0;
+wacc = 0.07;
+nb_year = T/8760;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: bio_kerosene_produced[T]; 
+external: h2_consumed[T];
+external: ng_consumed[T];
+external: co2_captured[T];
+external: e_consumed[T]; 
+external: biomass_consumed[T];
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+new_capacity >= 0;
+bio_kerosene_produced[t] >= 0; 
+h2_consumed[t] >= 0; 
+ng_consumed[t] >= 0;
+co2_captured[t] >= 0;
+e_consumed[t] >= 0; 
+minimum_level * (pre_installed_capacity + new_capacity) <= bio_kerosene_produced[t];
+bio_kerosene_produced[t] <= pre_installed_capacity + new_capacity;
+bio_kerosene_produced[i] - bio_kerosene_produced[i-1] <= ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+bio_kerosene_produced[i] - bio_kerosene_produced[i-1] >= -ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+h2_consumed[t]/lhv_h2 == conversion_factor_hydrogen * bio_kerosene_produced[t]/lhv_kerosene;
+ng_consumed[t] == conversion_factor_ng * bio_kerosene_produced[t]/lhv_kerosene;
+co2_captured[t] == conversion_factor_co2 * bio_kerosene_produced[t];
+e_consumed[t] == conversion_factor_elec * bio_kerosene_produced[t]/lhv_kerosene; 
+biomass_consumed[t] == conversion_biomass * bio_kerosene_produced[t]/lhv_kerosene;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * bio_kerosene_produced[t];
+min fuel_cost: fuel_cost * biomass_consumed[t];        // M€
+max co2_capt_cost: co2_emission_cost * co2_captured[t];          // M€ 
+
+
+
+
+#NODE REFINED_PETROL_STORAGE
+
+#PARAMETERS 
+pre_installed_capacity_stock = 0;    // GWh  
+pre_installed_capacity_flow = 0;     // GWh/h  
+
+max_capacity_stock = 100;           // GWh  
+max_capacity_flow = 1 * max_capacity_stock; // GWh/h
+
+capex_stock_existing = 0;             // M€/GWh
+capex_flow_existing = 0;              // M€/GWh/h
+fom_stock_existing = 0.05282;         // M€/GWh/yr
+fom_flow_existing = 0.0;              // M€/GWh/h/yr
+vom_stock_existing = 0.0;             // M€/GWh
+vom_flow_existing = 0.0;              // M€/GWh
+lifetime_stock_existing = 30.0;       // years
+lifetime_flow_existing = 30.0;        // years
+
+capex_stock = 0;                     // M€/GWh
+capex_flow = 0;                      // M€/GWh/h
+fom_stock = 0.05282;                  // M€/GWh/yr
+fom_flow = 0.0;                      // M€/GWh/h/yr
+vom_stock = 0.0;                     // M€/GWh
+vom_flow = 0.0;                      // M€/GWh
+lifetime_stock = 30.0;               // years
+lifetime_flow = 30.0;                // years
+
+wacc = 0.07;
+nb_year = T/8760;
+
+yearly_capex_stock = capex_stock * wacc / (1 - (1 + wacc)**(-lifetime_stock));         // M€/GWh/yr
+yearly_capex_flow = capex_flow * wacc / (1 - (1 + wacc)**(-lifetime_flow));             // M€/GWh/h/yr
+
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1 - (1 + wacc)**(-lifetime_stock_existing)); // M€/GWh/yr
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1 - (1 + wacc)**(-lifetime_flow_existing));    // M€/GWh/h/yr
+
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock
+                     + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow; // M€/yr
+
+#VARIABLES
+internal: capacity_flow;           // GWh/h
+internal: capacity_stock;          // GWh 
+internal: diesel_stored[T];        // GWh
+external: diesel_charged[T];       // GWh/h
+external: diesel_discharged[T];    // GWh/h
+internal: kerosene_stored[T];      // GWh
+external: kerosene_charged[T];     // GWh/h
+external: kerosene_discharged[T];  // GWh/h
+
+#CONSTRAINTS 
+capacity_stock + pre_installed_capacity_stock <= max_capacity_stock;
+capacity_flow + pre_installed_capacity_flow <= max_capacity_flow;
+
+diesel_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+diesel_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+diesel_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+diesel_stored[0] == diesel_stored[T-1];
+diesel_stored[t+1] == diesel_stored[t] + diesel_charged[t] - diesel_discharged[t];
+diesel_stored[t] >= 0;
+diesel_charged[t] >= 0;
+diesel_discharged[t] >= 0;
+
+kerosene_charged[t] <= capacity_flow + pre_installed_capacity_flow;
+kerosene_discharged[t] <= capacity_flow + pre_installed_capacity_flow;
+kerosene_stored[t] <= capacity_stock + pre_installed_capacity_stock;
+kerosene_stored[0] == kerosene_stored[T-1];
+kerosene_stored[t+1] == kerosene_stored[t] + kerosene_charged[t] - kerosene_discharged[t];
+kerosene_stored[t] >= 0;
+kerosene_charged[t] >= 0;
+kerosene_discharged[t] >= 0; 
+
+capacity_flow >= 0;
+capacity_stock >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * capacity_stock
+             + nb_year * (yearly_capex_flow + fom_flow) * capacity_flow
+            + yearly_existing_cost;
+
+min var_cost: vom_stock * (diesel_stored[t] + kerosene_stored[t])
+            + vom_flow * (diesel_charged[t] + kerosene_charged[t]);

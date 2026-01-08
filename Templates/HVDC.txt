@@ -1,0 +1,61 @@
+#TIMEHORIZON
+T = 8760 * 1;
+
+
+#NODE HVDC
+// Data from Berger et al. 2019 (to change) for cost and efficiency
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+pre_installed_capacity = 0.0;                                                       // GW(e)
+max_capacity = 200;                                                                 // GW(e)
+length = 1000;                                                                        // km
+capex_lines_existing = 1*length;                                                    // M€/GW(e)
+capex_stations_existing = 762.6;                                                    // M€/GW(e)
+capex_existing = capex_lines_existing + capex_stations_existing;                    // M€/GW(e)
+fom_existing = 0.015* capex_existing;                                               // M€/GW(e)/yr
+vom_existing = 0.000001;                                                            // M€/GWh(e)
+lifetime_lines_existing = 40.0;                                                     
+// years    
+lifetime_stations_existing = 40.0;                                                  // years
+// assumed same cost in 2050
+capex_lines = 1*length;                                                             // M€/GW(e)
+capex_stations = 762.6;                                                             // M€/GW(e)
+capex = capex_lines + capex_stations;                                               // M€/GW(e)
+fom = 0.015* capex;                                                                 // M€/GW(e)/yr
+vom = 0.000001;                                                                     // M€/GWh(e)
+lifetime_lines = 40.0;                                                              // years    
+lifetime_stations = 40.0;                                                           // years
+efficiency_HVDC = (1-0.03/1000 *length) * 0.99 * 0.99;
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex_lines * wacc / (1 - (1 + wacc)**(-lifetime_lines))
++ capex_stations * wacc / (1 - (1 + wacc)**(-lifetime_stations));                               // M€/GW(e)/yr (Lines + Stations)
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = yearly_capex;                                                           // M€/GW(e)/yr                                                                                    
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;         // M€/yr
+
+#VARIABLES
+internal: new_capacity;                                                             // GW(e)
+external: e_forward_in[T];                                                          // GWh(e)
+external: e_forward_out[T];                                                         // GWh(e)
+external: e_reverse_in[T];                                                          // GWh(e)
+external: e_reverse_out[T];                                                         // GWh(e)
+
+#CONSTRAINTS
+new_capacity >= 0;
+new_capacity + pre_installed_capacity <= max_capacity;
+e_forward_in[t] >= 0;
+e_reverse_in[t] >= 0;
+e_forward_in[t] <= new_capacity + pre_installed_capacity;
+e_reverse_in[t] <= new_capacity + pre_installed_capacity;
+e_forward_out[t] == efficiency_HVDC * e_forward_in[t]; 
+e_reverse_out[t] == efficiency_HVDC * e_reverse_in[t];
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		                // M€	
+min var_cost: vom * (e_forward_in[t] + e_reverse_in[t]);                            // M€
+
+

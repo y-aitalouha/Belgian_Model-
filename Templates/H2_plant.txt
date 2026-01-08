@@ -1,0 +1,168 @@
+#TIMEHORIZON
+T = 8760;
+
+
+
+#NODE HYDROGEN_LIQUEFACTION_PLANTS
+
+#PARAMETERS
+unit_kt_h = 0; 
+pre_installed_capacity = 0.0; 
+max_capacity = 100.0; 
+capex_existing = 0.0; 
+fom_existing = 0.0; 
+vom_existing = 0.0; 
+lifetime_existing = 40.0; 
+full_capex = 45000.0; 
+capex = 45000.0; 
+fom = 1125.0; 
+vom = 0.0; 
+lifetime = 40.0;
+conversion_factor_electricity = 12.0; 
+conversion_factor_h2_consumed = 1.0; 
+min_level = 1.0; 
+ramp_rate_up = 0.0;
+ramp_rate_down = 0.0; 
+wacc = 0.07; 
+nb_year = T/8760.0; 
+yearly_capex = capex * wacc / (1.0 - (1.0 + wacc)**(-lifetime)); 
+yearly_capex_existing = capex_existing * wacc / (1.0 - (1.0 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity;
+external: e_consumed[T]; 
+external: h2_consumed[T];
+external: lh2_produced[T];
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+lh2_produced[t] <= pre_installed_capacity + new_capacity; 
+min_level * (pre_installed_capacity + new_capacity) <= lh2_produced[t]; 
+e_consumed[t] == conversion_factor_electricity * lh2_produced[t];
+h2_consumed[t] == conversion_factor_h2_consumed * lh2_produced[t];
+lh2_produced[i] <= lh2_produced[i-1] + ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+lh2_produced[i-1] <= lh2_produced[i] + ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+new_capacity >= 0;
+e_consumed[t] >= 0;
+lh2_produced[t] >= 0;
+h2_consumed[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost; 
+min var_cost: vom * lh2_produced[t];
+
+
+
+#NODE HYDROGEN_REGASIFICATION
+
+#PARAMETERS
+unit_kt_h = 0;
+pre_installed_capacity = 0.0;
+max_capacity = 100.0;
+capex_existing = 0.0;
+fom_existing = 0.0;
+vom_existing = 0.0;
+lifetime_existing = 30.0;
+full_capex = 9099.909; 
+capex = 9099.909;
+fom = 227.498; 
+vom = 0.0;
+lifetime = 30.0;
+conversion_factor = 1.0;
+min_level = 0.0;
+ramp_rate_up = 1.0;
+ramp_rate_down = 1.0;
+wacc = 0.07; 
+nb_year = T/8760.0;
+yearly_capex = capex * wacc / (1.0 - (1.0 + wacc)**(-lifetime));
+yearly_capex_existing = capex_existing * wacc / (1.0 - (1.0 + wacc)**(-lifetime_existing));
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;
+
+#VARIABLES
+internal: new_capacity; 
+external: h2_produced[T];
+external: lh2_consumed[T];
+
+#CONSTRAINTS
+pre_installed_capacity + new_capacity <= max_capacity;
+h2_produced[t] <= pre_installed_capacity + new_capacity; 
+lh2_consumed[t] == conversion_factor * h2_produced[t];
+min_level * (pre_installed_capacity + new_capacity) <= h2_produced[t]; 
+h2_produced[i] <= h2_produced[i-1] + ramp_rate_up * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+h2_produced[i-1] <= h2_produced[i] + ramp_rate_down * (pre_installed_capacity + new_capacity) for i in [1:T-1];
+new_capacity >= 0;
+lh2_consumed[t] >= 0;
+h2_produced[t] >= 0;
+
+#OBJECTIVES
+min fix_cost: nb_year * (yearly_capex + fom) * new_capacity + yearly_existing_cost;
+min var_cost: vom * h2_produced[t];
+
+
+
+
+
+#NODE LIQUID_H2_STORAGE
+
+#PARAMETERS
+pre_installed_capacity_stock = 0.0;
+pre_installed_capacity_flow = 0.0;
+capex_stock_existing = 0.0;
+capex_flow_existing = 0.0;
+fom_stock_existing = 0.0;
+fom_flow_existing = 0.0;
+vom_stock_existing = 0.0;
+vom_flow_existing = 0.0;
+lifetime_stock_existing = 1.0;
+lifetime_flow_existing = 1.0;
+full_capex_stock = 25.0;
+capex_stock = 25.0;
+full_capex_flow = 0.0;
+capex_flow = 0.0;
+lifetime_stock = 30.0;
+lifetime_flow = 30.0;
+fom_flow = 0.0;
+fom_stock = 0.5;
+vom_flow = 0.0;
+vom_stock = 0.0;
+wacc = 0.07;
+charge_discharge_ratio = 1.0;
+self_discharge = 0.00008;
+efficiency_in = 1.0;
+efficiency_out = 1.0;
+nb_year = T/8760.0;
+max_capacity_stock = 250.0;
+max_capacity_flow = 250.0;
+min_level_stock = 0.0;
+yearly_capex_stock = capex_stock * wacc / (1.0 - (1.0 + wacc)**(-lifetime_stock));
+yearly_capex_flow = capex_flow * wacc / (1.0 - (1.0 + wacc)**(-lifetime_flow));
+yearly_capex_stock_existing = capex_stock_existing * wacc / (1.0 - (1.0 + wacc)**(-lifetime_stock_existing));
+yearly_capex_flow_existing = capex_flow_existing * wacc / (1.0 - (1.0 + wacc)**(-lifetime_flow_existing));
+yearly_existing_cost = (yearly_capex_stock_existing + fom_stock_existing) * pre_installed_capacity_stock + (yearly_capex_flow_existing + fom_flow_existing) * pre_installed_capacity_flow;
+
+#VARIABLES
+internal: new_power_capacity;
+internal: new_energy_capacity;
+external: lh2_stored[T];
+external: lh2_charged[T];
+external: lh2_discharged[T];
+
+#CONSTRAINTS
+new_energy_capacity + pre_installed_capacity_stock <= max_capacity_stock;
+new_power_capacity + pre_installed_capacity_flow <= max_capacity_flow;
+lh2_charged[t] <= new_power_capacity + pre_installed_capacity_flow;
+lh2_discharged[t] <= new_power_capacity + pre_installed_capacity_flow;
+lh2_stored[t] <= new_energy_capacity + pre_installed_capacity_stock;
+min_level_stock * (new_energy_capacity + pre_installed_capacity_stock) <= lh2_stored[t];
+lh2_stored[0] == (1.0 - self_discharge) * lh2_stored[T-1] + efficiency_in * lh2_charged[T-1] - lh2_discharged[T-1]/ efficiency_out; 
+lh2_stored[i+1] == (1.0 - self_discharge) * lh2_stored[i] + efficiency_in * lh2_charged[i] - lh2_discharged[i]/ efficiency_out for i in [0:T-2]; 
+new_power_capacity >= 0;
+new_energy_capacity >= 0;
+lh2_stored[t] >= 0;
+lh2_charged[t] >= 0;
+lh2_discharged[t] >= 0;
+
+#OBJECTIVES 
+min fix_cost: nb_year * (yearly_capex_stock + fom_stock) * new_energy_capacity + nb_year * (yearly_capex_flow + fom_flow) * new_power_capacity + yearly_existing_cost;
+min: vom_stock * lh2_stored[t] + vom_flow * lh2_charged[t];

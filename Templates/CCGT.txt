@@ -1,0 +1,67 @@
+#TIMEHORIZON
+T = 8760 * 1; 
+
+#NODE CCGT
+// ASSET data for 2050 for advanced CCGT have been taken as defaults for cost and efficiency parameters 
+// ens.dk data for 2050 for minimum power and outage
+
+#PARAMETERS
+unit_GW = 0;
+energy_electricity = 0;
+pre_installed_capacity = 3.01;          // GW(e)
+max_capacity = 100;                     // GW(e)
+
+// data from ASSET 2020
+capex_existing = 820;                   // M€/GW(e)
+fom_existing = 17;                      // M€/GW(e)/yr
+vom_existing = 1.99 * 1/(10**3);        // M€/GWh(e)
+lifetime_existing = 25;                 // years
+
+// data from ASSET 2050
+capex = 750;                            // M€/GW(e)
+fom = 15;                               // M€/GW(e)/yr
+vom = 1.73 * 1/(10**3);                 // M€/GWh(e)
+conversion_efficiency = 0.60;           // GWh(e)/GWh(ch4_lhv)
+lifetime = 30;                          // years
+
+// data from ens.dk
+min_external_power = 0.4;                
+planned_outage = 2/52;                  // 2 weeks/52
+
+// Others
+ramp_rate_up = 1.0;                      
+ramp_rate_down = 1.0;                    
+spec_CO2_emission = 0.202;              // kt/GWh
+nb_year = T/8760;
+// yearly capex
+wacc = 0.07;
+yearly_capex = capex * wacc / (1 - (1 + wacc)**(-lifetime));                                        // M€/GW(e)/yr
+// used to compute the total cost of the system after the optimisation
+yearly_capex_existing = capex_existing * wacc / (1 - (1 + wacc)**(-lifetime_existing));             // M€/GW(e)/yr
+yearly_existing_cost = (yearly_capex_existing + fom_existing) * pre_installed_capacity;             // M€/yr
+// Conversion factors
+conversion_factor_methane = conversion_efficiency;                                                  // GWh(e)/GWh(ch4)
+conversion_factor_carbon_dioxide = conversion_factor_methane/spec_CO2_emission;                     // GWh(e)/kt(co2)
+
+
+#VARIABLES
+internal: new_capacity;                 // GW(e)
+external: ng_consumed[T];               // GWh(ch4)
+external: e_produced[T];                // GWh(e)
+external: co2_produced[T];              // kt(co2)
+
+#CONSTRAINTS
+new_capacity >= 0;
+pre_installed_capacity + new_capacity <= max_capacity;
+min_external_power * (new_capacity + pre_installed_capacity) <= e_produced[t];
+e_produced[t] <= (new_capacity + pre_installed_capacity);
+e_produced[t] == conversion_factor_methane * ng_consumed[t];
+e_produced[i] - e_produced[i-1] <= ramp_rate_up * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+e_produced[i] - e_produced[i-1] >= - ramp_rate_down * (new_capacity + pre_installed_capacity) for i in [1:T-1];
+sum(e_produced[i] for i in [0:T-1]) <= (1 - planned_outage) * (pre_installed_capacity + new_capacity) * T;
+co2_produced[t] == e_produced[t]/conversion_factor_carbon_dioxide;
+
+#OBJECTIVES
+min fix_cost: (yearly_capex + fom) * nb_year * new_capacity ; 		// M€	
+min var_cost: vom * e_produced[t];                                  // M€
+
