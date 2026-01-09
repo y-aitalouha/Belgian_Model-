@@ -19,9 +19,9 @@ vom = 0.0;
 lifetime = 30.0;
 
 conversion_factor_electricity = 0.1081;
-minimum_level = 0.1;
-ramp_rate_up = 1.0;
-ramp_rate_down = 1.0;
+minimum_level = 1;
+ramp_rate_up = 0;
+ramp_rate_down = 0;
 
 wacc = 0.07;
 nb_year = T/8760;
