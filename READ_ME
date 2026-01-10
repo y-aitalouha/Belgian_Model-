@@ -1,0 +1,90 @@
+# Belgian Energy System Model – Low-Carbon Fuels Integration
+
+This repository contains the full modeling framework developed as part of a Master’s thesis focused on the integration of low-carbon fuels into the Belgian energy system under a carbon neutrality constraint by 2050.  
+The project relies on a multi-energy optimization model implemented using the Graph-Based Optimization Modeling Language (GBOML) and Python-based post-processing tools.
+
+---
+
+## Repository Structure
+
+The project folder is organized as follows:
+
+### 📁 Data
+This folder contains all input time series used in the simulations, including:
+- Electricity demand and renewable generation profiles  
+- Methane and Hydrogen demands
+- Methane import
+- Low carbon fuel demand for heavy transport
+- Processed datasets related to the ENTSO-E / ENTSOG Ten-Year Network Development Plan (TYNDP)
+
+---
+
+### 📁 Modules
+This folder contains all custom Python modules used throughout the project.  
+It includes utility functions for:
+- Data processing and aggregation  
+- Scenario handling  
+- Post-processing of model outputs  
+- Plotting and visualization tools
+
+---
+
+### 📁 Templates
+This folder contains all GBOML node and component templates implemented in the model, such as:
+- Production units  
+- Storage systems  
+- Conversion processes  
+- Transport and import/export nodes  
+
+These templates are reused across different model configurations and scenarios.
+
+---
+
+### 📁 Models_GBOML
+This folder contains the three GBOML energy system models developed in this project, representing different configurations of the Belgian energy system.  
+Each model defines the system structure, constraints, and interactions between energy carriers.
+
+---
+
+### 📁 Launch
+This folder contains Jupyter notebooks used to:
+- Configure and launch simulations  
+- Run different scenarios and sensitivity analyses  
+- Manage model inputs and outputs  
+
+---
+
+### 📁 Analyser
+This folder contains Jupyter notebooks dedicated to the analysis of simulation results, including:
+- Energy balances  
+- Cost breakdowns  
+- Technology deployment   
+
+---
+
+### 📁 Plots
+This folder stores all figures generated during the analysis phase.
+All plots used in the thesis are saved in this directory.
+
+---
+
+## Usage
+
+1. Prepare or update input data in the `Data` folder.
+2. Select the desired GBOML model in `Models_GBOML`.
+3. Run simulations using the notebooks in `Launch`.
+4. Analyze results using the notebooks in `Analyser`.
+5. Generated plots are automatically saved in the `Plots` folder.
+
+---
+
+## Context
+
+This repository supports the Master’s thesis:
+
+**Integration of Low-Carbon Fuels into Heavy-Duty Transport within the Belgian Energy System toward Carbon Neutrality by 2050**
+by Younès Aït Alouha
+
+University of Liège – Master of Science in Energy Engineering
+
+---
