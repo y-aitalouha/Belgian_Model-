@@ -14,8 +14,7 @@ This folder contains all input time series used in the simulations, including:
 - Electricity demand and renewable generation profiles  
 - Methane and Hydrogen demands
 - Methane import
-- Low carbon fuel demand for heavy transport
-- Processed datasets related to the ENTSO-E / ENTSOG Ten-Year Network Development Plan (TYNDP)
+- Low carbon fuel demand for heavy transport 
 
 ---
 
